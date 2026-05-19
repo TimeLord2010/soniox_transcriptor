@@ -18,10 +18,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoApp(
       theme: const CupertinoThemeData(brightness: Brightness.light),
-      home: CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.white,
-        child: const MainPage(),
-      ),
+      home: const MainPage(),
     );
   }
 }

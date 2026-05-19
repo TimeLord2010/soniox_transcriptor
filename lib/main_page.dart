@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import 'package:gap/gap.dart';
+import 'package:soniox_transcriptor/protocols/show_toast.dart';
 
 import 'local_repository.dart';
 
@@ -28,23 +30,10 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _saveApiKey() async {
-    await LocalRepository.setApiKey(
+    LocalRepository.setApiKey(
       _controller.text.isEmpty ? null : _controller.text,
     );
-    // Optionally show a confirmation
-    showCupertinoDialog(
-      context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: const Text('Success'),
-        content: const Text('API key saved.'),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
+    showToast(context, 'API key saved.');
   }
 
   @override
@@ -52,29 +41,41 @@ class _MainPageState extends State<MainPage> {
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
         middle: Text('Vit transcriptor'),
+        backgroundColor: CupertinoColors.systemBackground,
       ),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
+          child: Row(
             children: [
-              CupertinoTextField(
-                controller: _controller,
-                placeholder: 'Enter API key',
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12.0,
-                  horizontal: 12.0,
-                ),
-              ),
-              const SizedBox(height: 20),
-              CupertinoButton.filled(
-                onPressed: _saveApiKey,
-                child: const Text('Save'),
-              ),
+              Expanded(child: _apiKeyField()),
+              Gap(20),
+              _saveApiKeyButton(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  CupertinoTextField _apiKeyField() {
+    return CupertinoTextField(
+      controller: _controller,
+      placeholder: 'Enter API key',
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
+      decoration: const BoxDecoration(
+        color: CupertinoColors.systemGrey6,
+        borderRadius: BorderRadius.all(Radius.circular(8.0)),
+      ),
+    );
+  }
+
+  CupertinoButton _saveApiKeyButton() {
+    return CupertinoButton.filled(
+      color: CupertinoColors.activeBlue,
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0),
+      onPressed: _saveApiKey,
+      child: const Text('Save'),
     );
   }
 }
