@@ -1,8 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:get_it/get_it.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:soniox_transcriptor/protocols/show_toast.dart';
 
+import 'hotkey_config.dart';
 import 'local_repository.dart';
 
 class MainPage extends StatefulWidget {
@@ -13,36 +16,75 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  final _controller = TextEditingController();
+  final _apiKeyController = TextEditingController();
   bool _isRecording = false;
-  late FocusNode _focusNode;
+  final _focusNode = FocusNode();
+  final _hotkeyConfig = GetIt.instance<HotkeyConfig>();
+  HotKey? _registeredHotKey;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
     _loadApiKey();
+    _registerGlobalHotkey();
   }
 
   @override
   void dispose() {
+    _unregisterGlobalHotkey();
     _focusNode.dispose();
-    _controller.dispose();
+    _apiKeyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _registerGlobalHotkey() async {
+    if (_apiKeyController.text.isEmpty) return;
+
+    try {
+      final hotKey = HotKey(
+        key: PhysicalKeyboardKey.keyR,
+        modifiers: [HotKeyModifier.meta, HotKeyModifier.shift],
+        scope: HotKeyScope.system,
+      );
+
+      await _hotkeyConfig.registerHotkey(
+        id: 'global_record',
+        hotKey: hotKey,
+        onPressed: _onGlobalHotkeyPressed,
+      );
+
+      _registeredHotKey = hotKey;
+    } catch (e) {
+      if (mounted) {
+        showToast(context, 'Failed to register global hotkey');
+      }
+    }
+  }
+
+  Future<void> _unregisterGlobalHotkey() async {
+    if (_registeredHotKey != null) {
+      await _hotkeyConfig.unregisterHotkey(_registeredHotKey!);
+    }
+  }
+
+  void _onGlobalHotkeyPressed() {
+    if (mounted) {
+      showToast(context, 'Global hotkey triggered!');
+    }
   }
 
   Future<void> _loadApiKey() async {
     final savedKey = LocalRepository.getApiKey();
     if (savedKey != null) {
       setState(() {
-        _controller.text = savedKey;
+        _apiKeyController.text = savedKey;
       });
     }
   }
 
   Future<void> _saveApiKey() async {
     LocalRepository.setApiKey(
-      _controller.text.isEmpty ? null : _controller.text,
+      _apiKeyController.text.isEmpty ? null : _apiKeyController.text,
     );
     showToast(context, 'API key saved.');
   }
@@ -106,7 +148,7 @@ class _MainPageState extends State<MainPage> {
       final keyLabel = event.logicalKey.keyLabel;
       if (keyLabel.isNotEmpty) {
         setState(() {
-          _controller.text = keyLabel;
+          _apiKeyController.text = keyLabel;
           _isRecording = false;
         });
         showToast(context, 'Key "$keyLabel" recorded.');
@@ -116,7 +158,7 @@ class _MainPageState extends State<MainPage> {
 
   CupertinoTextField _apiKeyField() {
     return CupertinoTextField(
-      controller: _controller,
+      controller: _apiKeyController,
       placeholder: 'Enter API key',
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
       decoration: const BoxDecoration(

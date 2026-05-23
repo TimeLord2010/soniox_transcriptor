@@ -1,13 +1,21 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'hotkey_config.dart';
 import 'main_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   final prefs = await SharedPreferences.getInstance();
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
+  GetIt.instance.registerSingleton<HotkeyConfig>(HotkeyConfig());
+
+  await hotKeyManager.unregisterAll();
+
   runApp(const MainApp());
 }
 
@@ -16,9 +24,11 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-      theme: const CupertinoThemeData(brightness: Brightness.light),
-      home: const MainPage(),
+    return ProviderScope(
+      child: CupertinoApp(
+        theme: const CupertinoThemeData(brightness: Brightness.light),
+        home: const MainPage(),
+      ),
     );
   }
 }
