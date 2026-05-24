@@ -25,6 +25,7 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
     }
 
     func startListening() {
+        guard ensureAccessibilityPermissions() else { return }
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard event.keyCode == 61 else { return }
             if event.modifierFlags.contains(.option) {
@@ -33,6 +34,26 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
                 self?.channel.invokeMethod("onHotkeyReleased", arguments: nil)
             }
         }
+    }
+
+    /// Returns true if Accessibility is already granted. If not, opens the System
+    /// Settings prompt and shows an alert telling the user to restart after granting.
+    @discardableResult
+    func ensureAccessibilityPermissions() -> Bool {
+        if AXIsProcessTrusted() { return true }
+
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Accessibility permission required"
+            alert.informativeText = "Please grant Accessibility access in System Settings → Privacy & Security → Accessibility, then restart the app."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+        return false
     }
 
     func stopListening() {
@@ -47,16 +68,21 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        let source = CGEventSource(stateID: .hidSystemState)
-        let vKeyCode: CGKeyCode = 0x09
+        // Small delay so the previously focused app can fully regain focus before
+        // we synthesize Cmd+V. Without this, release builds (AOT, faster) may post
+        // the event before the target app is ready to receive it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let source = CGEventSource(stateID: .combinedSessionState)
+            let vKeyCode: CGKeyCode = 0x09
 
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-        keyDown?.flags = .maskCommand
-        keyDown?.post(tap: .cgAnnotatedSessionEventTap)
+            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
+            keyDown?.flags = .maskCommand
+            keyDown?.post(tap: .cgSessionEventTap)
 
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
-        keyUp?.flags = .maskCommand
-        keyUp?.post(tap: .cgAnnotatedSessionEventTap)
+            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+            keyUp?.flags = .maskCommand
+            keyUp?.post(tap: .cgSessionEventTap)
+        }
     }
 
     // MARK: - Overlay
