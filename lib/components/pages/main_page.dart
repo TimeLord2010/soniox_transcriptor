@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
@@ -140,12 +141,27 @@ class _MainPageState extends State<MainPage> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 14),
             ),
-            Text(
-              timeStr,
-              style: TextStyle(
-                fontSize: 12,
-                color: CupertinoColors.systemGrey,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: record.text));
+                  },
+                  child: const Icon(
+                    CupertinoIcons.doc_on_doc,
+                    size: 16,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
