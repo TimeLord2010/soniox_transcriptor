@@ -23,6 +23,21 @@ class HotkeyListener {
     await _hotkeyChannel.invokeMethod('pasteText', text);
   }
 
+  static Future<void> showOverlay() async {
+    await _hotkeyChannel.invokeMethod('showOverlay');
+  }
+
+  static Future<void> hideOverlay() async {
+    await _hotkeyChannel.invokeMethod('hideOverlay');
+  }
+
+  static Future<void> updateTranscription(String finalText, String nonFinalText) async {
+    await _hotkeyChannel.invokeMethod('updateTranscription', {
+      'finalText': finalText,
+      'nonFinalText': nonFinalText,
+    });
+  }
+
   Future<void> _onMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onHotkeyPressed':

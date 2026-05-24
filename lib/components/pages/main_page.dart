@@ -111,12 +111,15 @@ class _MainPageState extends State<MainPage> {
       if (_isProcessing) return;
       _isProcessing = true;
 
+      HotkeyListener.showOverlay();
+
       _transcriptionSubscription?.cancel();
       _transcriptionSubscription = current.transcription.listen((
         transcription,
       ) {
         buffer.write(transcription.finalText);
         nonFinal = transcription.nonFinalText;
+        HotkeyListener.updateTranscription(buffer.toString(), nonFinal);
       });
 
       current.connect();
@@ -124,6 +127,8 @@ class _MainPageState extends State<MainPage> {
     };
     hotkeyListener.onKeyUp = () {
       if (!_isProcessing) return;
+
+      HotkeyListener.hideOverlay();
 
       var textToPast = buffer.toString() + nonFinal;
       if (textToPast.isNotEmpty) {
