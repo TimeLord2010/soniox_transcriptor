@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
-import '../local_repository.dart';
+import '../modules/local_storage_module.dart';
 import '../protocols/show_toast.dart';
 
 class ApiKeySetter extends ConsumerStatefulWidget {
@@ -62,7 +62,7 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
   // MARK: Events
 
   Future<void> _loadApiKey() async {
-    final savedKey = LocalRepository.getApiKey();
+    final savedKey = LocalStorageModule.getApiKey();
     if (savedKey != null) {
       setState(() {
         _apiKeyController.text = savedKey;
@@ -71,7 +71,7 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
   }
 
   Future<void> _saveApiKey() async {
-    LocalRepository.setApiKey(
+    LocalStorageModule.setApiKey(
       _apiKeyController.text.isEmpty ? null : _apiKeyController.text,
     );
     showToast(context, 'API key saved.');

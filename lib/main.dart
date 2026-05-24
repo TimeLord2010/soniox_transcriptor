@@ -3,17 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'hotkey_config.dart';
-import 'main_page.dart';
+import 'components/pages/main_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final prefs = await SharedPreferences.getInstance();
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
-  GetIt.instance.registerSingleton<HotkeyConfig>(HotkeyConfig());
-
-  await GetIt.instance<HotkeyConfig>().initialize();
 
   runApp(const MainApp());
 }

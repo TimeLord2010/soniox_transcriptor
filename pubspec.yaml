@@ -1,5 +1,5 @@
 name: soniox_transcriptor
-description: "A new Flutter project."
+description: 'A new Flutter project.'
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -13,9 +13,9 @@ dependencies:
   gap: ^3.0.1
   get_it: ^9.2.1
   shared_preferences: ^2.5.5
-  super_hot_key: ^0.9.1
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
+  vit_soniox: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -23,4 +23,3 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
-  uses-material-design: true

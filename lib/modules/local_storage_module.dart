@@ -1,7 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class LocalRepository {
+class LocalStorageModule {
   static const _apiKeyKey = 'api_key';
 
   /// Retrieves the saved API key, or null if none is stored.
