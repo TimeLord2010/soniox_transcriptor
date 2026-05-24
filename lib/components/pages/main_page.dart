@@ -74,10 +74,7 @@ class _MainPageState extends State<MainPage> {
                 children: [
                   const Text(
                     'History',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   CupertinoButton(
                     padding: EdgeInsets.zero,
@@ -126,9 +123,7 @@ class _MainPageState extends State<MainPage> {
         padding: const EdgeInsets.all(12),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: CupertinoColors.systemGrey4,
-          ),
+          border: Border.all(color: CupertinoColors.systemGrey4),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -152,14 +147,14 @@ class _MainPageState extends State<MainPage> {
                   ),
                 ),
                 CupertinoButton(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: record.text));
                   },
-                  child: const Icon(
-                    CupertinoIcons.doc_on_doc,
-                    size: 16,
-                  ),
+                  child: const Icon(CupertinoIcons.doc_on_doc, size: 16),
                 ),
               ],
             ),
