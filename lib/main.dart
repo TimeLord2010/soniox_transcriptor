@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,9 @@ class MainApp extends StatelessWidget {
     return ProviderScope(
       child: CupertinoApp(
         theme: const CupertinoThemeData(brightness: Brightness.light),
+        scrollBehavior: CupertinoScrollBehavior().copyWith(
+          dragDevices: PointerDeviceKind.values.toSet(),
+        ),
         home: const MainPage(),
       ),
     );
