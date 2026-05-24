@@ -453,6 +453,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  vit_dart_extensions:
+    dependency: "direct main"
+    description:
+      name: vit_dart_extensions
+      sha256: "849e4b8eabf512d748fddddbf8b50c044f38911ae60e67a773d90b6e73d4f497"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.0"
   vit_soniox:
     dependency: "direct main"
     description:

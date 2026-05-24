@@ -19,6 +19,7 @@ dependencies:
   vit_soniox: ^1.0.0
   record: ^6.2.1
   web_socket_channel: ^3.0.3
+  vit_dart_extensions: ^4.2.0
 
 dev_dependencies:
   flutter_test:
