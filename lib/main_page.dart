@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
-import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/protocols/show_toast.dart';
+import 'package:super_hot_key/super_hot_key.dart';
 
 import 'hotkey_config.dart';
 
@@ -18,7 +18,7 @@ class _MainPageState extends State<MainPage> {
   bool _isRecording = false;
   final _focusNode = FocusNode();
   final _hotkeyConfig = GetIt.instance<HotkeyConfig>();
-  HotKey? _registeredHotKey;
+  String? _registeredHotKeyId;
   LogicalKeyboardKey? _transcriptionKey;
 
   @override
@@ -79,8 +79,8 @@ class _MainPageState extends State<MainPage> {
   // MARK: Events
 
   Future<void> _unregisterGlobalHotkey() async {
-    if (_registeredHotKey != null) {
-      await _hotkeyConfig.unregisterHotkey(_registeredHotKey!);
+    if (_registeredHotKeyId != null) {
+      await _hotkeyConfig.unregisterHotkey(_registeredHotKeyId!);
     }
   }
 
@@ -108,19 +108,15 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _registerGlobalHotkey() async {
     try {
-      final hotKey = HotKey(
-        key: PhysicalKeyboardKey.keyR,
-        modifiers: [.meta, .shift],
-        scope: .system,
-      );
+      final definition = HotKeyDefinition(key: PhysicalKeyboardKey.keyR);
 
       await _hotkeyConfig.registerHotkey(
         id: 'global_record',
-        hotKey: hotKey,
+        definition: definition,
         onPressed: _onGlobalHotkeyPressed,
       );
 
-      _registeredHotKey = hotKey;
+      _registeredHotKeyId = 'global_record';
     } catch (e) {
       if (mounted) {
         showToast(context, 'Failed to register global hotkey');

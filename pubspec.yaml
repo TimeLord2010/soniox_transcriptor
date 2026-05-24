@@ -13,7 +13,7 @@ dependencies:
   gap: ^3.0.1
   get_it: ^9.2.1
   shared_preferences: ^2.5.5
-  hotkey_manager: ^0.2.3
+  super_hot_key: ^0.9.1
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
 

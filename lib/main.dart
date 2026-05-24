@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
-import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'hotkey_config.dart';
@@ -14,7 +13,7 @@ void main() async {
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
   GetIt.instance.registerSingleton<HotkeyConfig>(HotkeyConfig());
 
-  await hotKeyManager.unregisterAll();
+  await GetIt.instance<HotkeyConfig>().initialize();
 
   runApp(const MainApp());
 }
