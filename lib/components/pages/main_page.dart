@@ -22,6 +22,7 @@ class _MainPageState extends State<MainPage> {
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<int>>? _recordStreamSubscription;
   StreamSubscription? _transcriptionSubscription;
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -107,6 +108,9 @@ class _MainPageState extends State<MainPage> {
     String nonFinal = '';
 
     hotkeyListener.onKeyDown = () {
+      if (_isProcessing) return;
+      _isProcessing = true;
+
       _transcriptionSubscription?.cancel();
       _transcriptionSubscription = current.transcription.listen((
         transcription,
@@ -119,12 +123,15 @@ class _MainPageState extends State<MainPage> {
       debugPrint('Connect command');
     };
     hotkeyListener.onKeyUp = () {
+      if (!_isProcessing) return;
+
       var textToPast = buffer.toString() + nonFinal;
       if (textToPast.isNotEmpty) {
         HotkeyListener.pasteText(textToPast);
       }
       current.disconnect();
       recorder.stop();
+      _isProcessing = false;
       _updateSonioxInstance(apiKey: apiKey);
     };
   }
