@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
@@ -17,6 +19,9 @@ class _MainPageState extends State<MainPage> {
   final hotkeyListener = HotkeyListener(onKeyDown: () {}, onKeyUp: () {});
   final recorder = RecorderRepository();
   SonioxWebsocket? soniox;
+  StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<List<int>>? _recordStreamSubscription;
+  StreamSubscription? _transcriptionSubscription;
 
   @override
   void initState() {
@@ -65,6 +70,9 @@ class _MainPageState extends State<MainPage> {
     hotkeyListener.onKeyUp = () {};
     soniox?.disconnect();
     recorder.stop();
+    _connectionSubscription?.cancel();
+    _recordStreamSubscription?.cancel();
+    _transcriptionSubscription?.cancel();
 
     if (apiKey.isEmpty) {
       return;
@@ -82,14 +90,16 @@ class _MainPageState extends State<MainPage> {
       websocket: SonioxWebsocketImpl(),
     );
 
-    current.connectionStream.listen((connect) async {
+    _connectionSubscription = current.connectionStream.listen((connect) async {
       debugPrint('Connected! $connect');
       if (connect) {
         await recorder.start();
         debugPrint('Recording...');
-        recorder.recordStream.listen((data) {
+        _recordStreamSubscription = recorder.recordStream.listen((data) {
           current.addAudio(data);
         });
+      } else {
+        _recordStreamSubscription?.cancel();
       }
     });
 
@@ -97,7 +107,10 @@ class _MainPageState extends State<MainPage> {
     String nonFinal = '';
 
     hotkeyListener.onKeyDown = () {
-      current.transcription.listen((transcription) {
+      _transcriptionSubscription?.cancel();
+      _transcriptionSubscription = current.transcription.listen((
+        transcription,
+      ) {
         buffer.write(transcription.finalText);
         nonFinal = transcription.nonFinalText;
       });
