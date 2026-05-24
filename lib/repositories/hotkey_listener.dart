@@ -19,6 +19,10 @@ class HotkeyListener {
     _hotkeyChannel.setMethodCallHandler(null);
   }
 
+  static Future<void> pasteText(String text) async {
+    await _hotkeyChannel.invokeMethod('pasteText', text);
+  }
+
   Future<void> _onMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onHotkeyPressed':

@@ -36,6 +36,23 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
         }
     }
 
+    func pasteText(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        let source = CGEventSource(stateID: .hidSystemState)
+        let vKeyCode: CGKeyCode = 0x09
+
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
+        keyDown?.flags = .maskCommand
+        keyDown?.post(tap: .cgAnnotatedSessionEventTap)
+
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        keyUp?.flags = .maskCommand
+        keyUp?.post(tap: .cgAnnotatedSessionEventTap)
+    }
+
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "start":
@@ -43,6 +60,11 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             result(nil)
         case "stop":
             stopListening()
+            result(nil)
+        case "pasteText":
+            if let text = call.arguments as? String {
+                pasteText(text)
+            }
             result(nil)
         default:
             result(FlutterMethodNotImplemented)

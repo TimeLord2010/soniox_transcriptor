@@ -92,7 +92,9 @@ class _MainPageState extends State<MainPage> {
   void _showDevicePicker(BuildContext context) {
     final initialIndex = _selectedDevice == null
         ? 0
-        : _devices.indexWhere((d) => d.id == _selectedDevice!.id).clamp(0, _devices.length - 1);
+        : _devices
+              .indexWhere((d) => d.id == _selectedDevice!.id)
+              .clamp(0, _devices.length - 1);
     var pickerIndex = initialIndex;
 
     showCupertinoModalPopup<void>(
@@ -101,7 +103,9 @@ class _MainPageState extends State<MainPage> {
         height: 216,
         color: CupertinoColors.systemBackground.resolveFrom(context),
         child: CupertinoPicker(
-          scrollController: FixedExtentScrollController(initialItem: initialIndex),
+          scrollController: FixedExtentScrollController(
+            initialItem: initialIndex,
+          ),
           itemExtent: 36,
           onSelectedItemChanged: (i) => pickerIndex = i,
           children: _devices.map((d) => Center(child: Text(d.label))).toList(),
@@ -163,8 +167,10 @@ class _MainPageState extends State<MainPage> {
       debugPrint('Connect command');
     };
     hotkeyListener.onKeyUp = () {
-      debugPrint('Final Transcription: ${buffer.toString()}');
-      debugPrint('Non final transcription: $nonFinal');
+      var textToPast = buffer.toString() + nonFinal;
+      if (textToPast.isNotEmpty) {
+        HotkeyListener.pasteText(textToPast);
+      }
       current.disconnect();
       recorder.stop();
       _updateSonioxInstance();
