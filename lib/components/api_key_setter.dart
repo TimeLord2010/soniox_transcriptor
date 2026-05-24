@@ -6,7 +6,9 @@ import '../modules/local_storage_module.dart';
 import '../protocols/show_toast.dart';
 
 class ApiKeySetter extends ConsumerStatefulWidget {
-  const ApiKeySetter({super.key});
+  const ApiKeySetter({super.key, required this.onApiKeyChanged});
+
+  final void Function(String? value) onApiKeyChanged;
 
   @override
   ConsumerState<ApiKeySetter> createState() => _ApiKeySetterState();
@@ -68,12 +70,13 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
         _apiKeyController.text = savedKey;
       });
     }
+    widget.onApiKeyChanged(savedKey);
   }
 
   Future<void> _saveApiKey() async {
-    LocalStorageModule.setApiKey(
-      _apiKeyController.text.isEmpty ? null : _apiKeyController.text,
-    );
-    showToast(context, 'API key saved.');
+    var key = _apiKeyController.text.isEmpty ? null : _apiKeyController.text;
+    widget.onApiKeyChanged(key);
+    await LocalStorageModule.setApiKey(key);
+    if (mounted) showToast(context, 'API key saved.');
   }
 }

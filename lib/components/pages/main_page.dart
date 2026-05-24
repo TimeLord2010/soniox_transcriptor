@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
-import 'package:soniox_transcriptor/protocols/show_toast.dart';
+import 'package:soniox_transcriptor/repositories/hotkey_listener.dart';
+import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
+import 'package:soniox_transcriptor/repositories/soniox_websocket_impl.dart';
+import 'package:vit_soniox/vit_soniox.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -11,43 +13,20 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  static const _hotkeyChannel = MethodChannel('hotkey_plugin');
+  final hotkeyListener = HotkeyListener(onKeyDown: () {}, onKeyUp: () {});
+  final recorder = RecorderRepository();
+  SonioxWebsocket? soniox;
 
   @override
   void initState() {
+    hotkeyListener.start();
     super.initState();
-    _hotkeyChannel.setMethodCallHandler(_onMethodCall);
-    _hotkeyChannel.invokeMethod('start');
   }
 
   @override
   void dispose() {
-    _hotkeyChannel.invokeMethod('stop');
-    _hotkeyChannel.setMethodCallHandler(null);
+    HotkeyListener.stop();
     super.dispose();
-  }
-
-  Future<void> _onMethodCall(MethodCall call) async {
-    switch (call.method) {
-      case 'onHotkeyPressed':
-        _onGlobalHotkeyPressed();
-      case 'onHotkeyReleased':
-        _onGlobalHotkeyReleased();
-    }
-  }
-
-  void _onGlobalHotkeyPressed() {
-    if (mounted) {
-      showToast(context, 'Global hotkey triggered!');
-    }
-    print('global key pressed');
-  }
-
-  void _onGlobalHotkeyReleased() {
-    if (mounted) {
-      showToast(context, 'Global hotkey released!');
-    }
-    print('global key released');
   }
 
   @override
@@ -60,9 +39,75 @@ class _MainPageState extends State<MainPage> {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(spacing: 20, children: [ApiKeySetter()]),
+          child: Column(
+            spacing: 20,
+            children: [
+              ApiKeySetter(
+                onApiKeyChanged: (value) {
+                  _updateSonioxInstance(apiKey: value ?? '');
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  // MARK: Events
+
+  void _updateSonioxInstance({String apiKey = ''}) {
+    // Reset
+    hotkeyListener.onKeyDown = () {};
+    hotkeyListener.onKeyUp = () {};
+    soniox?.disconnect();
+    recorder.stop();
+
+    if (apiKey.isEmpty) {
+      return;
+    }
+
+    // Updating state
+    debugPrint('Creating soniox websocket with api key');
+    var current = soniox = SonioxWebsocket(
+      SonioxSessionConfig(
+        apiKey: apiKey,
+        audio: AudioConfig.pcms16le(),
+        languageHints: ['pt', 'en'],
+        languageStrict: true,
+      ),
+      websocket: SonioxWebsocketImpl(),
+    );
+
+    current.connectionStream.listen((connect) async {
+      debugPrint('Connected! $connect');
+      if (connect) {
+        await recorder.start();
+        debugPrint('Recording...');
+        recorder.recordStream.listen((data) {
+          current.addAudio(data);
+        });
+      }
+    });
+
+    final buffer = StringBuffer();
+    String nonFinal = '';
+
+    hotkeyListener.onKeyDown = () {
+      current.transcription.listen((transcription) {
+        buffer.write(transcription.finalText);
+        nonFinal = transcription.nonFinalText;
+      });
+
+      current.connect();
+      debugPrint('Connect command');
+    };
+    hotkeyListener.onKeyUp = () {
+      debugPrint('Final Transcription: ${buffer.toString()}');
+      debugPrint('Non final transcription: $nonFinal');
+      current.disconnect();
+      recorder.stop();
+      _updateSonioxInstance();
+    };
   }
 }
