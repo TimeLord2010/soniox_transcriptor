@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soniox_transcriptor/components/styles/glass_config.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'components/pages/main_page.dart';
@@ -27,21 +28,7 @@ void main() async {
     LiquidGlassWidgets.wrap(
       child: const MainApp(),
       theme: GlassThemeData(
-        light: GlassThemeVariant(
-          quality: .premium,
-          settings: GlassThemeSettings(
-            glassColor: const Color.fromARGB(170, 178, 178, 193),
-            thickness: 30,
-            blur: 1,
-            chromaticAberration: .01,
-            lightAngle: GlassDefaults.lightAngle,
-            lightIntensity: .5,
-            ambientStrength: 0,
-            refractiveIndex: 1.2,
-            saturation: 1.2,
-            specularSharpness: GlassSpecularSharpness.medium,
-          ),
-        ),
+        light: GlassThemeVariant(quality: .premium, settings: glassConfig),
       ),
     ),
   );
@@ -57,7 +44,7 @@ class MainApp extends StatelessWidget {
         scrollBehavior: MaterialScrollBehavior().copyWith(
           dragDevices: PointerDeviceKind.values.toSet(),
         ),
-        home: const MainPage(),
+        home: LiquidGlassLayer(child: const MainPage()),
       ),
     );
   }

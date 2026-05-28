@@ -44,6 +44,7 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
   Widget _apiKeyField() {
     return GlassTextField(
       controller: _apiKeyController,
+      useOwnLayer: true,
       placeholder: 'Enter API key',
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
       textStyle: TextStyle(color: Colors.black),
@@ -53,6 +54,7 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
   Widget _saveApiKeyButton() {
     return GlassButton(
       onTap: _saveApiKey,
+      useOwnLayer: true,
       icon: Icon(Icons.save, color: Colors.black),
     );
   }

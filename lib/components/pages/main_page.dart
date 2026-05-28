@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
+import 'package:soniox_transcriptor/components/styles/glass_config.dart';
+import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/providers/history_provider.dart';
@@ -55,18 +58,7 @@ class _MainPageState extends ConsumerState<MainPage> {
       resizeToAvoidBottomInset: false,
       bottomNavigationBar: GlassBottomBar(
         quality: GlassQuality.premium,
-        glassSettings: LiquidGlassSettings(
-          glassColor: const Color.fromARGB(170, 204, 204, 221),
-          thickness: 30,
-          blur: 1,
-          chromaticAberration: .01,
-          lightAngle: GlassDefaults.lightAngle,
-          lightIntensity: .5,
-          ambientStrength: 0,
-          refractiveIndex: 1.2,
-          saturation: 1.2,
-          specularSharpness: GlassSpecularSharpness.medium,
-        ),
+        glassSettings: glassSettings,
         tabs: [
           GlassBottomBarTab(icon: Icon(Icons.home, color: Colors.black)),
           GlassBottomBarTab(icon: Icon(Icons.history, color: Colors.black)),
@@ -101,12 +93,8 @@ class _MainPageState extends ConsumerState<MainPage> {
             },
           ),
           DevicePicker(recorder: recorder),
-          Column(
-            spacing: 5,
-            crossAxisAlignment: .start,
-            children: [Text('Termos'), GlassTextField()],
-          ),
-          _sandbox(),
+          TermsPicker(),
+          if (kReleaseMode) _sandbox(),
         ],
       ),
     );
