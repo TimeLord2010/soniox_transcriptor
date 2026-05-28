@@ -32,11 +32,17 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: .start,
       children: [
-        Expanded(child: _apiKeyField()),
-        Gap(20),
-        _saveApiKeyButton(),
+        Text('Chave soniox'),
+        Row(
+          children: [
+            Expanded(child: _apiKeyField()),
+            Gap(20),
+            _saveApiKeyButton(),
+          ],
+        ),
       ],
     );
   }

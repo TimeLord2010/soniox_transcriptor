@@ -22,7 +22,7 @@ class TranscriptionsHistory extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'History',
+                'Histórico',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               CupertinoButton(
@@ -32,7 +32,7 @@ class TranscriptionsHistory extends ConsumerWidget {
                     : () {
                         _clearHistory(context, ref);
                       },
-                child: const Text('Clear all'),
+                child: const Text('Limpar tudo'),
               ),
             ],
           ),
@@ -41,7 +41,7 @@ class TranscriptionsHistory extends ConsumerWidget {
           child: history.isEmpty
               ? Center(
                   child: Text(
-                    'No transcriptions yet',
+                    'Sem transcrições',
                     style: TextStyle(
                       color: CupertinoColors.systemGrey,
                       fontSize: 14,

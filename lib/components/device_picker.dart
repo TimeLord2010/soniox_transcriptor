@@ -33,10 +33,10 @@ class _DevicePickerState extends State<DevicePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final label = _selectedDevice?.label ?? 'Default';
+    final label = _selectedDevice?.label ?? 'Padrão';
     return Row(
       children: [
-        const Text('Input device'),
+        const Text('Dispositivo'),
         const Spacer(),
         CupertinoButton(
           padding: EdgeInsets.zero,

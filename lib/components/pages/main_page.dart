@@ -11,6 +11,7 @@ import 'package:soniox_transcriptor/components/styles/glass_config.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/providers/context_providers.dart';
 import 'package:soniox_transcriptor/providers/history_provider.dart';
 import 'package:soniox_transcriptor/repositories/hotkey_listener.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
@@ -136,15 +137,19 @@ class _MainPageState extends ConsumerState<MainPage> {
       return;
     }
 
+    var terms = ref.read(termsProvider);
+
     // Updating state
     debugPrint('Creating soniox websocket with api key');
+    var sonioxSessionConfig = SonioxSessionConfig(
+      apiKey: apiKey,
+      audio: AudioConfig.pcms16le(),
+      languageHints: ['pt', 'en'],
+      languageStrict: true,
+      context: SessionContext(text: null, terms: terms),
+    );
     var current = soniox = SonioxWebsocket(
-      SonioxSessionConfig(
-        apiKey: apiKey,
-        audio: AudioConfig.pcms16le(),
-        languageHints: ['pt', 'en'],
-        languageStrict: true,
-      ),
+      sonioxSessionConfig,
       websocket: SonioxWebsocketImpl(),
     );
 
