@@ -1,6 +1,7 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../modules/local_storage_module.dart';
 import '../protocols/show_toast.dart';
@@ -40,24 +41,19 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
     );
   }
 
-  CupertinoTextField _apiKeyField() {
-    return CupertinoTextField(
+  Widget _apiKeyField() {
+    return GlassTextField(
       controller: _apiKeyController,
       placeholder: 'Enter API key',
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-      decoration: const BoxDecoration(
-        color: CupertinoColors.systemGrey6,
-        borderRadius: BorderRadius.all(Radius.circular(8.0)),
-      ),
+      textStyle: TextStyle(color: Colors.black),
     );
   }
 
-  CupertinoButton _saveApiKeyButton() {
-    return CupertinoButton.filled(
-      color: CupertinoColors.activeBlue,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0),
-      onPressed: _saveApiKey,
-      child: const Text('Save'),
+  Widget _saveApiKeyButton() {
+    return GlassButton(
+      onTap: _saveApiKey,
+      icon: Icon(Icons.save, color: Colors.black),
     );
   }
 

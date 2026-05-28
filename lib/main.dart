@@ -1,7 +1,8 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -11,6 +12,7 @@ import 'repositories/transcription_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LiquidGlassWidgets.initialize();
 
   final prefs = await SharedPreferences.getInstance();
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
@@ -21,7 +23,28 @@ void main() async {
     TranscriptionRepository(),
   );
 
-  runApp(const MainApp());
+  runApp(
+    LiquidGlassWidgets.wrap(
+      child: const MainApp(),
+      theme: GlassThemeData(
+        light: GlassThemeVariant(
+          quality: .premium,
+          settings: GlassThemeSettings(
+            glassColor: const Color.fromARGB(170, 178, 178, 193),
+            thickness: 30,
+            blur: 1,
+            chromaticAberration: .01,
+            lightAngle: GlassDefaults.lightAngle,
+            lightIntensity: .5,
+            ambientStrength: 0,
+            refractiveIndex: 1.2,
+            saturation: 1.2,
+            specularSharpness: GlassSpecularSharpness.medium,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class MainApp extends StatelessWidget {
@@ -30,9 +53,8 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      child: CupertinoApp(
-        theme: const CupertinoThemeData(brightness: Brightness.light),
-        scrollBehavior: CupertinoScrollBehavior().copyWith(
+      child: MaterialApp(
+        scrollBehavior: MaterialScrollBehavior().copyWith(
           dragDevices: PointerDeviceKind.values.toSet(),
         ),
         home: const MainPage(),

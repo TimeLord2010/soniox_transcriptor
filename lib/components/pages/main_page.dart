@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
@@ -30,6 +31,8 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription? _transcriptionSubscription;
   bool _isProcessing = false;
 
+  int currentPage = 0;
+
   @override
   void initState() {
     hotkeyListener.start();
@@ -44,28 +47,87 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Vit transcriptor'),
-        backgroundColor: CupertinoColors.systemBackground,
-      ),
-      child: SafeArea(
-        child: Padding(padding: const EdgeInsets.all(16.0), child: _content()),
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 234, 239, 241),
+      appBar: AppBar(title: Text('Vit transcriptor')),
+      body: _content(),
+      extendBody: true,
+      resizeToAvoidBottomInset: false,
+      bottomNavigationBar: GlassBottomBar(
+        quality: GlassQuality.premium,
+        glassSettings: LiquidGlassSettings(
+          glassColor: const Color.fromARGB(170, 204, 204, 221),
+          thickness: 30,
+          blur: 1,
+          chromaticAberration: .01,
+          lightAngle: GlassDefaults.lightAngle,
+          lightIntensity: .5,
+          ambientStrength: 0,
+          refractiveIndex: 1.2,
+          saturation: 1.2,
+          specularSharpness: GlassSpecularSharpness.medium,
+        ),
+        tabs: [
+          GlassBottomBarTab(icon: Icon(Icons.home, color: Colors.black)),
+          GlassBottomBarTab(icon: Icon(Icons.history, color: Colors.black)),
+        ],
+        selectedIndex: currentPage,
+        onTabSelected: (value) {
+          currentPage = value;
+          setState(() {});
+        },
       ),
     );
   }
 
-  Column _content() {
+  Widget _content() {
+    return switch (currentPage) {
+      0 => _homePage(),
+      1 => TranscriptionsHistory(),
+      _ => Placeholder(),
+    };
+  }
+
+  Widget _homePage() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        crossAxisAlignment: .start,
+        spacing: 20,
+        children: [
+          ApiKeySetter(
+            onApiKeyChanged: (value) {
+              _updateSonioxInstance(apiKey: value ?? '');
+            },
+          ),
+          DevicePicker(recorder: recorder),
+          Column(
+            spacing: 5,
+            crossAxisAlignment: .start,
+            children: [Text('Termos'), GlassTextField()],
+          ),
+          _sandbox(),
+        ],
+      ),
+    );
+  }
+
+  Column _sandbox() {
     return Column(
-      spacing: 20,
+      crossAxisAlignment: .start,
+      spacing: 5,
       children: [
-        ApiKeySetter(
-          onApiKeyChanged: (value) {
-            _updateSonioxInstance(apiKey: value ?? '');
-          },
+        Text('Sandbox'),
+        Row(
+          spacing: 10,
+          children: [
+            Expanded(child: GlassTextArea(maxLines: 5)),
+            ElevatedButton(
+              onPressed: () {},
+              child: Icon(Icons.record_voice_over),
+            ),
+          ],
         ),
-        DevicePicker(recorder: recorder),
-        Expanded(child: TranscriptionsHistory()),
       ],
     );
   }

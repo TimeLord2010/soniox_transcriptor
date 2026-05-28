@@ -16,23 +16,26 @@ class TranscriptionsHistory extends ConsumerWidget {
     return Column(
       spacing: 12,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'History',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: history.isEmpty
-                  ? null
-                  : () {
-                      _clearHistory(context, ref);
-                    },
-              child: const Text('Clear all'),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'History',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: history.isEmpty
+                    ? null
+                    : () {
+                        _clearHistory(context, ref);
+                      },
+                child: const Text('Clear all'),
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: history.isEmpty
@@ -47,6 +50,7 @@ class TranscriptionsHistory extends ConsumerWidget {
                 )
               : ListView.builder(
                   itemCount: history.length,
+                  padding: EdgeInsets.fromLTRB(10, 0, 10, 100),
                   itemBuilder: (context, index) {
                     final record = history[index];
                     return _buildHistoryItem(ref, record);
