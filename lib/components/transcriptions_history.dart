@@ -63,53 +63,43 @@ class TranscriptionsHistory extends ConsumerWidget {
 
   Widget _buildHistoryItem(WidgetRef ref, TranscriptionRecord record) {
     final timeStr = _formatTime(record.createdAt);
-    return Dismissible(
-      key: ValueKey(record.id),
-      onDismissed: (_) {
-        GetIt.I.get<TranscriptionRepository>().delete(record.id!);
-        ref.invalidate(historyProvider);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: CupertinoColors.systemGrey4),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 6,
-          children: [
-            Text(
-              record.text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  timeStr,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.systemGrey,
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: CupertinoColors.systemGrey4),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 6,
+        children: [
+          Text(
+            record.text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                timeStr,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: CupertinoColors.systemGrey,
                 ),
-                CupertinoButton(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: record.text));
-                  },
-                  child: const Icon(CupertinoIcons.doc_on_doc, size: 16),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: record.text));
+                },
+                child: const Icon(CupertinoIcons.doc_on_doc, size: 16),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
