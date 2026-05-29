@@ -39,13 +39,19 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   @override
   void initState() {
-    hotkeyListener.start();
     super.initState();
+    hotkeyListener.start().catchError((Object e) {
+      debugPrint('[MainPage] hotkeyListener.start() error: $e');
+    });
   }
 
   @override
   void dispose() {
-    HotkeyListener.stop();
+    // The native hotkey monitor is a single, app-global resource. MainPage can
+    // mount more than once (the LiquidGlass/theme wrapper rebuilds the subtree),
+    // and calling the static stop() here would tear down the monitor that a
+    // newer, still-alive MainPage just registered. Let it live for the app's
+    // lifetime; the OS reclaims it on exit.
     super.dispose();
   }
 

@@ -6,17 +6,16 @@ class HotkeyListener {
   void Function() onKeyDown;
   void Function() onKeyUp;
 
-  HotkeyListener({required this.onKeyDown, required this.onKeyUp});
+  HotkeyListener({required this.onKeyDown, required this.onKeyUp}) {
+    _hotkeyChannel.setMethodCallHandler(_onMethodCall);
+  }
 
   Future<void> start() async {
-    await stop();
-    _hotkeyChannel.setMethodCallHandler(_onMethodCall);
     await _hotkeyChannel.invokeMethod('start');
   }
 
   static Future<void> stop() async {
     await _hotkeyChannel.invokeMethod('stop');
-    _hotkeyChannel.setMethodCallHandler(null);
   }
 
   static Future<void> pasteText(String text) async {

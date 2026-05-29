@@ -8,8 +8,12 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             binaryMessenger: registrar.messenger
         )
         let instance = HotkeyPlugin(channel: channel)
+        shared = instance
         registrar.addMethodCallDelegate(instance, channel: channel)
     }
+
+    // Strong reference so the instance is never deallocated between calls.
+    private static var shared: HotkeyPlugin?
 
     private let channel: FlutterMethodChannel
     private var monitor: Any?
@@ -24,16 +28,26 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
         self.channel = channel
     }
 
-    func startListening() {
-        guard ensureAccessibilityPermissions() else { return }
+    func startListening(result: @escaping FlutterResult) {
+        stopListening()
+
+        guard ensureAccessibilityPermissions() else {
+            result(FlutterError(code: "NO_ACCESSIBILITY", message: "Accessibility permission not granted", details: nil))
+            return
+        }
+
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            guard event.keyCode == 61 else { return }
-            if event.modifierFlags.contains(.option) {
-                self?.channel.invokeMethod("onHotkeyPressed", arguments: nil)
-            } else {
-                self?.channel.invokeMethod("onHotkeyReleased", arguments: nil)
+            guard event.keyCode == 61, let self = self else { return }
+            let methodName = event.modifierFlags.contains(.option) ? "onHotkeyPressed" : "onHotkeyReleased"
+            DispatchQueue.main.async {
+                self.channel.invokeMethod(methodName, arguments: nil)
             }
         }
+        if monitor == nil {
+            result(FlutterError(code: "MONITOR_FAILED", message: "Failed to register global event monitor", details: nil))
+            return
+        }
+        result(nil)
     }
 
     /// Returns true if Accessibility is already granted. If not, opens the System
@@ -228,8 +242,7 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "start":
-            startListening()
-            result(nil)
+            startListening(result: result)
         case "stop":
             stopListening()
             result(nil)
