@@ -25,9 +25,9 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
           controller: _controller,
           useOwnLayer: true,
           textStyle: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
-          onSubmitted: (value) {
+          onSubmitted: (value) async {
             if (value.isEmpty) return;
-            ref.read(termsProvider.notifier).state = [...terms, value];
+            await ref.read(termsProvider.notifier).addTerm(value);
             _controller.clear();
           },
         ),
@@ -43,10 +43,8 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
                   Icons.delete,
                   color: const Color.fromARGB(255, 156, 42, 34),
                 ),
-                onDeleted: () {
-                  ref.read(termsProvider.notifier).state = [
-                    ...terms..remove(term),
-                  ];
+                onDeleted: () async {
+                  await ref.read(termsProvider.notifier).deleteTerm(term);
                 },
               ),
           ],

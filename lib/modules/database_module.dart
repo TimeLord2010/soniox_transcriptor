@@ -17,6 +17,15 @@ class DatabaseModule {
       )
     ''');
 
+    // New table for persisting terms
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS terms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        term TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
     return db;
   }
 }

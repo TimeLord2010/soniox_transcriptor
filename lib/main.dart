@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'components/pages/main_page.dart';
 import 'modules/database_module.dart';
+import 'repositories/terms_repository.dart';
 import 'repositories/transcription_repository.dart';
 
 void main() async {
@@ -23,6 +24,7 @@ void main() async {
   GetIt.instance.registerSingleton<TranscriptionRepository>(
     TranscriptionRepository(),
   );
+  GetIt.instance.registerSingleton<TermsRepository>(TermsRepository());
 
   runApp(
     LiquidGlassWidgets.wrap(
