@@ -59,7 +59,6 @@ class _MainPageState extends ConsumerState<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 234, 239, 241),
-      appBar: AppBar(title: Text('Vit transcriptor')),
       body: _content(),
       extendBody: true,
       resizeToAvoidBottomInset: false,
