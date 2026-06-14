@@ -1,5 +1,23 @@
 import 'package:flutter/services.dart';
 
+/// Bridges Flutter to the native macOS hotkey plugin.
+///
+/// The native side lives in [macos/Runner/HotkeyPlugin.swift]. It uses
+/// `NSEvent.addGlobalMonitorForEvents` to watch for the Right Option key
+/// (keyCode 61, `.flagsChanged` events) system-wide — which requires macOS
+/// Accessibility permission. When granted, the monitor fires regardless of
+/// which app is in the foreground.
+///
+/// Communication goes through a [MethodChannel] named `"hotkey_plugin"`:
+/// - Flutter → native: `start`, `stop`, `pasteText`, `showOverlay`,
+///   `hideOverlay`, `updateTranscription`.
+/// - Native → Flutter: `onHotkeyPressed` / `onHotkeyReleased`, which are
+///   forwarded to [onKeyDown] and [onKeyUp].
+///
+/// The overlay is a frameless, always-on-top `NSPanel` built entirely in Swift
+/// that shows a pulsing red dot and the live transcription text. Text pasting
+/// is done by writing to `NSPasteboard` and synthesizing a `CGEvent` Cmd+V
+/// keystroke directed at whatever app previously had focus.
 class HotkeyListener {
   static const _hotkeyChannel = MethodChannel('hotkey_plugin');
 

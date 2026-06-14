@@ -18,19 +18,6 @@ class TranscriptionsHistory extends ConsumerWidget {
     List<TranscriptionRecord> history = ref.watch(historyProvider);
     return Stack(
       children: [
-        // Padding(
-        //   padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        //   child: Row(
-        //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        //     children: [
-        //       const Text(
-        //         'Histórico',
-        //         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        //       ),
-
-        //     ],
-        //   ),
-        // ),
         Positioned.fill(
           top: 0,
           left: 0,

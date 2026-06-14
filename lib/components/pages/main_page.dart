@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
@@ -100,7 +99,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           ),
           DevicePicker(recorder: recorder),
           TermsPicker(),
-          if (kReleaseMode) _sandbox(),
+          _sandbox(),
         ],
       ),
     );
@@ -114,13 +113,7 @@ class _MainPageState extends ConsumerState<MainPage> {
         Text('Sandbox'),
         Row(
           spacing: 10,
-          children: [
-            Expanded(child: GlassTextArea(maxLines: 5)),
-            ElevatedButton(
-              onPressed: () {},
-              child: Icon(Icons.record_voice_over),
-            ),
-          ],
+          children: [Expanded(child: GlassTextArea(maxLines: 5))],
         ),
       ],
     );
