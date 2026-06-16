@@ -24,7 +24,16 @@ class HotkeyListener {
   void Function() onKeyDown;
   void Function() onKeyUp;
 
-  HotkeyListener({required this.onKeyDown, required this.onKeyUp}) {
+  /// Called by the native side when the app is in the foreground and the
+  /// transcription should be inserted directly into the focused Flutter field
+  /// (instead of being pasted via a synthesized Cmd+V).
+  void Function(String text)? onInsertText;
+
+  HotkeyListener({
+    required this.onKeyDown,
+    required this.onKeyUp,
+    this.onInsertText,
+  }) {
     _hotkeyChannel.setMethodCallHandler(_onMethodCall);
   }
 
@@ -61,6 +70,10 @@ class HotkeyListener {
         onKeyDown();
       case 'onHotkeyReleased':
         onKeyUp();
+      case 'insertText':
+        if (call.arguments is String) {
+          onInsertText?.call(call.arguments as String);
+        }
     }
   }
 }

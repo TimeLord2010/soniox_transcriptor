@@ -26,8 +26,14 @@ class MainPage extends ConsumerStatefulWidget {
 }
 
 class _MainPageState extends ConsumerState<MainPage> {
-  final hotkeyListener = HotkeyListener(onKeyDown: () {}, onKeyUp: () {});
+  late final hotkeyListener = HotkeyListener(
+    onKeyDown: () {},
+    onKeyUp: () {},
+    onInsertText: _insertIntoSandbox,
+  );
   final recorder = RecorderRepository();
+  final _sandboxController = TextEditingController();
+  final _sandboxFocusNode = FocusNode();
   SonioxWebsocket? soniox;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<int>>? _recordStreamSubscription;
@@ -51,6 +57,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     // and calling the static stop() here would tear down the monitor that a
     // newer, still-alive MainPage just registered. Let it live for the app's
     // lifetime; the OS reclaims it on exit.
+    _sandboxController.dispose();
+    _sandboxFocusNode.dispose();
     super.dispose();
   }
 
@@ -113,10 +121,35 @@ class _MainPageState extends ConsumerState<MainPage> {
         Text('Sandbox'),
         Row(
           spacing: 10,
-          children: [Expanded(child: GlassTextArea(maxLines: 5))],
+          children: [
+            Expanded(
+              child: GlassTextArea(
+                controller: _sandboxController,
+                focusNode: _sandboxFocusNode,
+                maxLines: 5,
+              ),
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  /// Inserts [text] into the sandbox field at the current cursor position,
+  /// replacing any selection. Invoked by the native side when the transcription
+  /// finishes while this app is in the foreground.
+  void _insertIntoSandbox(String text) {
+    final value = _sandboxController.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final newText = value.text.replaceRange(selection.start, selection.end, text);
+    final newOffset = selection.start + text.length;
+    _sandboxController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newOffset),
+    );
+    _sandboxFocusNode.requestFocus();
   }
 
   // MARK: Events

@@ -17,6 +17,7 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
 
     private let channel: FlutterMethodChannel
     private var monitor: Any?
+    private var localMonitor: Any?
 
     // Overlay
     private var overlayPanel: NSPanel?
@@ -36,13 +37,20 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+        let handler: (NSEvent) -> Void = { [weak self] event in
             guard event.keyCode == 61, let self = self else { return }
             let methodName = event.modifierFlags.contains(.option) ? "onHotkeyPressed" : "onHotkeyReleased"
             DispatchQueue.main.async {
                 self.channel.invokeMethod(methodName, arguments: nil)
             }
         }
+
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: handler)
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            handler(event)
+            return event
+        }
+
         if monitor == nil {
             result(FlutterError(code: "MONITOR_FAILED", message: "Failed to register global event monitor", details: nil))
             return
@@ -75,27 +83,47 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
         }
+        if let localMonitor = localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            self.localMonitor = nil
+        }
     }
 
     func pasteText(_ text: String) {
+        // When our own app is in the foreground, synthesized Cmd+V doesn't reliably
+        // reach Flutter's text fields. Hand the text back to Flutter and let it insert
+        // directly into the focused field instead.
+        if NSApp.isActive {
+            DispatchQueue.main.async { [weak self] in
+                self?.channel.invokeMethod("insertText", arguments: text)
+            }
+            return
+        }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // Small delay so the previously focused app can fully regain focus before
-        // we synthesize Cmd+V. Without this, release builds (AOT, faster) may post
-        // the event before the target app is ready to receive it.
+        // Small delay so focus settles (and the just-released Right Option key is
+        // fully up) before we synthesize Cmd+V. Without it, release builds may post
+        // the event before the target field is ready to receive it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let source = CGEventSource(stateID: .combinedSessionState)
+            // Use a private event source so the synthesized event does NOT merge the
+            // current hardware modifier flags. With .combinedSessionState, a lingering
+            // Right Option (the hotkey the user just released) gets OR'd in, turning
+            // Cmd+V into Cmd+Option+V — which is not a paste, so nothing appears.
+            let source = CGEventSource(stateID: .privateState)
             let vKeyCode: CGKeyCode = 0x09
 
             let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
             keyDown?.flags = .maskCommand
-            keyDown?.post(tap: .cgSessionEventTap)
+            // Post to the HID tap: injected at the lowest level, indistinguishable from
+            // a real keypress, so it reaches our own foreground Flutter field too.
+            keyDown?.post(tap: .cghidEventTap)
 
             let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
             keyUp?.flags = .maskCommand
-            keyUp?.post(tap: .cgSessionEventTap)
+            keyUp?.post(tap: .cghidEventTap)
         }
     }
 
