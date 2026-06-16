@@ -143,7 +143,11 @@ class _MainPageState extends ConsumerState<MainPage> {
     final selection = value.selection.isValid
         ? value.selection
         : TextSelection.collapsed(offset: value.text.length);
-    final newText = value.text.replaceRange(selection.start, selection.end, text);
+    final newText = value.text.replaceRange(
+      selection.start,
+      selection.end,
+      text,
+    );
     final newOffset = selection.start + text.length;
     _sandboxController.value = TextEditingValue(
       text: newText,
@@ -174,6 +178,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     debugPrint('Creating soniox websocket with api key');
     var sonioxSessionConfig = SonioxSessionConfig(
       apiKey: apiKey,
+      model: 'stt-rt-v5',
       audio: AudioConfig.pcms16le(),
       languageHints: ['pt', 'en'],
       languageStrict: true,
