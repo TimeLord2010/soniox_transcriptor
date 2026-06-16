@@ -52,6 +52,7 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
       controller: _apiKeyController,
       useOwnLayer: true,
       placeholder: 'Enter API key',
+      obscureText: true,
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
       textStyle: TextStyle(color: Colors.black),
     );
