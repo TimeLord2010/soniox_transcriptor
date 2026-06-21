@@ -197,6 +197,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     _connectionSubscription = current.connectionStream.listen((connect) async {
       debugPrint('Connected! $connect');
       if (connect) {
+        HotkeyListener.setListening();
         await recorder.start();
         debugPrint('Recording...');
         _recordStreamSubscription = recorder.recordStream.listen((data) {

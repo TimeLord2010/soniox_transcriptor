@@ -57,6 +57,10 @@ class HotkeyListener {
     await _hotkeyChannel.invokeMethod('hideOverlay');
   }
 
+  static Future<void> setListening() async {
+    await _hotkeyChannel.invokeMethod('setListening');
+  }
+
   static Future<void> updateTranscription(String finalText, String nonFinalText) async {
     await _hotkeyChannel.invokeMethod('updateTranscription', {
       'finalText': finalText,

@@ -137,7 +137,8 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
                 self.buildOverlayPanel()
             }
 
-            self.updateTranscriptionLabel(finalText: "", nonFinalText: "Ouvindo...")
+            self.statusDot?.layer?.backgroundColor = NSColor.systemYellow.cgColor
+            self.updateTranscriptionLabel(finalText: "", nonFinalText: "Conectando...")
             self.overlayPanel?.orderFrontRegardless()
             self.startDotAnimation()
         }
@@ -149,6 +150,14 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             self.dotTimer?.invalidate()
             self.dotTimer = nil
             self.overlayPanel?.orderOut(nil)
+        }
+    }
+
+    func setListening() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.statusDot?.layer?.backgroundColor = NSColor.systemRed.cgColor
+            self.updateTranscriptionLabel(finalText: "", nonFinalText: "Ouvindo...")
         }
     }
 
@@ -284,6 +293,9 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             result(nil)
         case "hideOverlay":
             hideOverlay()
+            result(nil)
+        case "setListening":
+            setListening()
             result(nil)
         case "updateTranscription":
             if let args = call.arguments as? [String: String] {
