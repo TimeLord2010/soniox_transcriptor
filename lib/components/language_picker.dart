@@ -10,39 +10,51 @@ class LanguagePicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     Set<Language> langs = ref.watch(languagesProvider);
-    return GlassMenu(
-      trigger: GlassContainer(
-        useOwnLayer: true,
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        shape: LiquidRoundedSuperellipse(borderRadius: 10),
-        child: Row(
-          children: [
-            Text('Línguas: ', style: TextStyle(fontSize: 18)),
-            Expanded(
-              child: Text(
-                langs.map((x) => x.label).join(','),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+    return Column(
+      crossAxisAlignment: .start,
+      children: [
+        Text('Línguas'),
+        GlassMenu(
+          trigger: GlassContainer(
+            useOwnLayer: true,
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            shape: LiquidRoundedSuperellipse(borderRadius: 10),
+            child: _currentSelection(langs),
+          ),
+          items: [
+            for (var item in Language.values)
+              GlassMenuItem(
+                title: '${langs.contains(item) ? '✔ ' : ''}${item.label}',
+                onTap: () {
+                  var alreadyPresent = langs.contains(item);
+                  if (alreadyPresent) {
+                    ref.read(languagesProvider.notifier).state = {...langs}
+                      ..remove(item);
+                  } else {
+                    ref.read(languagesProvider.notifier).state = {
+                      ...langs,
+                      item,
+                    };
+                  }
+                },
+                titleStyle: TextStyle(color: Colors.black),
               ),
-            ),
           ],
         ),
-      ),
-      items: [
-        for (var item in Language.values)
-          GlassMenuItem(
-            title: '${langs.contains(item) ? '✔ ' : ''}${item.label}',
-            onTap: () {
-              var alreadyPresent = langs.contains(item);
-              if (alreadyPresent) {
-                ref.read(languagesProvider.notifier).state = {...langs}
-                  ..remove(item);
-              } else {
-                ref.read(languagesProvider.notifier).state = {...langs, item};
-              }
-            },
-            titleStyle: TextStyle(color: Colors.black),
-          ),
       ],
+    );
+  }
+
+  Widget _currentSelection(Set<Language> langs) {
+    if (langs.isEmpty) {
+      return Text(
+        'Nenhuma língua selecionada',
+        style: TextStyle(fontStyle: .italic, fontSize: 16, color: Colors.grey),
+      );
+    }
+    return Text(
+      langs.map((x) => x.label).join(','),
+      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
     );
   }
 }

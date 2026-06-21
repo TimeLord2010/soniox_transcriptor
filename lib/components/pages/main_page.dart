@@ -95,8 +95,8 @@ class _MainPageState extends ConsumerState<MainPage> {
   }
 
   Widget _homePage() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 100),
       child: Column(
         crossAxisAlignment: .start,
         spacing: 20,
