@@ -176,6 +176,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     }
 
     var terms = ref.read(termsProvider);
+    var languageValues = ref.read(languagesProvider);
+    var languages = languageValues.map((x) => x.name).toList();
 
     // Updating state
     debugPrint('Creating soniox websocket with api key');
@@ -183,8 +185,8 @@ class _MainPageState extends ConsumerState<MainPage> {
       apiKey: apiKey,
       model: 'stt-rt-v5',
       audio: AudioConfig.pcms16le(),
-      languageHints: ['pt', 'en'],
-      languageStrict: true,
+      languageHints: languages,
+      languageStrict: languages.isNotEmpty,
       context: SessionContext(text: null, terms: terms),
     );
     var current = soniox = SonioxWebsocket(
