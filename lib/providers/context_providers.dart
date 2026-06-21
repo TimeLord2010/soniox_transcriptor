@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
+import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
+
+final languagesProvider = StateProvider<Set<Language>>((_) => {.pt});
 
 final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
   (ref) => TermsNotifier(),

@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
+import 'package:soniox_transcriptor/components/language_picker.dart';
 import 'package:soniox_transcriptor/components/styles/glass_config.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
@@ -107,6 +108,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           ),
           DevicePicker(recorder: recorder),
           TermsPicker(),
+          LanguagePicker(),
           _sandbox(),
         ],
       ),
@@ -127,6 +129,7 @@ class _MainPageState extends ConsumerState<MainPage> {
                 controller: _sandboxController,
                 focusNode: _sandboxFocusNode,
                 maxLines: 5,
+                useOwnLayer: true,
               ),
             ),
           ],
