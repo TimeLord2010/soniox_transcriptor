@@ -44,14 +44,19 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
                     label: term,
                     labelStyle: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
                     settings: glassSettings,
-                    deleteIcon: AnimatedCrossFade(
-                      duration: Duration(milliseconds: 300),
-                      crossFadeState: isMouseInside ? .showFirst : .showSecond,
-                      firstChild: Icon(
-                        Icons.delete,
-                        color: const Color.fromARGB(255, 156, 42, 34),
+                    deleteIcon: SizedBox(
+                      width: 18,
+                      child: AnimatedCrossFade(
+                        duration: Duration(milliseconds: 300),
+                        crossFadeState: isMouseInside
+                            ? .showFirst
+                            : .showSecond,
+                        firstChild: Icon(
+                          Icons.delete,
+                          color: const Color.fromARGB(255, 156, 42, 34),
+                        ),
+                        secondChild: SizedBox.shrink(),
                       ),
-                      secondChild: SizedBox.shrink(),
                     ),
                     onDeleted: () async {
                       await ref.read(termsProvider.notifier).deleteTerm(term);

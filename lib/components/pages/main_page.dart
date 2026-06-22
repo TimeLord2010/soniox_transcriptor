@@ -128,6 +128,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           focusNode: _sandboxFocusNode,
           maxLines: 5,
           useOwnLayer: true,
+          textStyle: TextStyle(color: Colors.black),
         ),
       ],
     );

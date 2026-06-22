@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
@@ -18,6 +18,7 @@ class ContextTextSetter extends ConsumerWidget {
           onChanged: (value) {
             ref.read(contextText.notifier).state = value;
           },
+          textStyle: TextStyle(color: Colors.black),
         ),
       ],
     );
