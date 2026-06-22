@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
+import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
 import 'package:soniox_transcriptor/components/styles/glass_config.dart';
@@ -109,6 +110,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           DevicePicker(recorder: recorder),
           TermsPicker(),
           LanguagePicker(),
+          ContextTextSetter(),
           _sandbox(),
         ],
       ),
@@ -121,18 +123,11 @@ class _MainPageState extends ConsumerState<MainPage> {
       spacing: 5,
       children: [
         Text('Sandbox'),
-        Row(
-          spacing: 10,
-          children: [
-            Expanded(
-              child: GlassTextArea(
-                controller: _sandboxController,
-                focusNode: _sandboxFocusNode,
-                maxLines: 5,
-                useOwnLayer: true,
-              ),
-            ),
-          ],
+        GlassTextArea(
+          controller: _sandboxController,
+          focusNode: _sandboxFocusNode,
+          maxLines: 5,
+          useOwnLayer: true,
         ),
       ],
     );
@@ -178,6 +173,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     var terms = ref.read(termsProvider);
     var languageValues = ref.read(languagesProvider);
     var languages = languageValues.map((x) => x.name).toList();
+    var cText = ref.read(contextText);
 
     // Updating state
     debugPrint('Creating soniox websocket with api key');
@@ -187,7 +183,7 @@ class _MainPageState extends ConsumerState<MainPage> {
       audio: AudioConfig.pcms16le(),
       languageHints: languages,
       languageStrict: languages.isNotEmpty,
-      context: SessionContext(text: null, terms: terms),
+      context: SessionContext(text: cText, terms: terms),
     );
     var current = soniox = SonioxWebsocket(
       sonioxSessionConfig,
