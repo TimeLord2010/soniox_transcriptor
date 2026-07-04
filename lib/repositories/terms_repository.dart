@@ -1,28 +1,25 @@
 import 'package:get_it/get_it.dart';
-import 'package:sqlite3/sqlite3.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TermsRepository {
-  Database get _db => GetIt.I.get<Database>();
+  static const _termsKey = 'terms';
+
+  SharedPreferences get _sp => GetIt.I.get<SharedPreferences>();
 
   Future<List<String>> getAllTerms() async {
-    final result = _db.select(
-      'SELECT term FROM terms ORDER BY created_at DESC',
-    );
-    return result.map((row) => row['term'] as String).toList();
+    return _sp.getStringList(_termsKey) ?? [];
   }
 
-  void addTerm(String term) {
-    final stmt = _db.prepare('''
-      INSERT OR IGNORE INTO terms (term, created_at)
-      VALUES (?, ?)
-    ''');
-    stmt.execute([term, DateTime.now().millisecondsSinceEpoch]);
-    stmt.close();
+  Future<void> addTerm(String term) async {
+    final terms = _sp.getStringList(_termsKey) ?? [];
+    if (terms.contains(term)) return;
+    final updated = [term, ...terms];
+    await _sp.setStringList(_termsKey, updated);
   }
 
-  void deleteTerm(String term) {
-    final stmt = _db.prepare('DELETE FROM terms WHERE term = ?');
-    stmt.execute([term]);
-    stmt.close();
+  Future<void> deleteTerm(String term) async {
+    final terms = _sp.getStringList(_termsKey) ?? [];
+    final updated = terms.where((t) => t != term).toList();
+    await _sp.setStringList(_termsKey, updated);
   }
 }

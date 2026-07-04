@@ -44,12 +44,12 @@ class TermsNotifier extends StateNotifier<List<String>> {
   }
 
   Future<void> addTerm(String term) async {
-    _repo.addTerm(term);
+    await _repo.addTerm(term);
     await _load();
   }
 
   Future<void> deleteTerm(String term) async {
-    _repo.deleteTerm(term);
+    await _repo.deleteTerm(term);
     await _load();
   }
 }
