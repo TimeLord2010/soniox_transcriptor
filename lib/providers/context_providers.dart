@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
+import 'package:soniox_transcriptor/repositories/context_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
 
-final contextText = StateProvider<String>((_) => '');
+final contextProvider = StateNotifierProvider<ContextNotifier, String>(
+  (ref) => ContextNotifier(),
+);
 
 final languagesProvider = StateProvider<Set<Language>>((_) => {.pt});
 
@@ -11,8 +13,26 @@ final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
   (ref) => TermsNotifier(),
 );
 
+class ContextNotifier extends StateNotifier<String> {
+  final _repo = ContextRepository();
+
+  ContextNotifier() : super('') {
+    _load();
+  }
+
+  void _load() {
+    final context = _repo.getContext();
+    state = context;
+  }
+
+  Future<void> setContext(String text) async {
+    await _repo.setContext(text);
+    state = text;
+  }
+}
+
 class TermsNotifier extends StateNotifier<List<String>> {
-  final TermsRepository _repo = GetIt.I.get<TermsRepository>();
+  final _repo = TermsRepository();
 
   TermsNotifier() : super([]) {
     _load();

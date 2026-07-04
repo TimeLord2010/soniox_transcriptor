@@ -174,7 +174,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     var terms = ref.read(termsProvider);
     var languageValues = ref.read(languagesProvider);
     var languages = languageValues.map((x) => x.name).toList();
-    var cText = ref.read(contextText);
+    var cText = ref.read(contextProvider);
 
     // Updating state
     debugPrint('Creating soniox websocket with api key');
