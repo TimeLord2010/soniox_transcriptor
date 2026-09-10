@@ -26,16 +26,7 @@ class LanguagePicker extends ConsumerWidget {
               GlassMenuItem(
                 title: '${langs.contains(item) ? '✔ ' : ''}${item.label}',
                 onTap: () {
-                  var alreadyPresent = langs.contains(item);
-                  if (alreadyPresent) {
-                    ref.read(languagesProvider.notifier).state = {...langs}
-                      ..remove(item);
-                  } else {
-                    ref.read(languagesProvider.notifier).state = {
-                      ...langs,
-                      item,
-                    };
-                  }
+                  ref.read(languagesProvider.notifier).toggleLanguage(item);
                 },
                 titleStyle: TextStyle(color: Colors.black),
               ),

@@ -1,13 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/repositories/context_repository.dart';
+import 'package:soniox_transcriptor/repositories/languages_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
 
 final contextProvider = StateNotifierProvider<ContextNotifier, String>(
   (ref) => ContextNotifier(),
 );
 
-final languagesProvider = StateProvider<Set<Language>>((_) => {.pt});
+final languagesProvider =
+    StateNotifierProvider<LanguagesNotifier, Set<Language>>(
+      (ref) => LanguagesNotifier(),
+    );
 
 final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
   (ref) => TermsNotifier(),
@@ -28,6 +32,27 @@ class ContextNotifier extends StateNotifier<String> {
   Future<void> setContext(String text) async {
     await _repo.setContext(text);
     state = text;
+  }
+}
+
+class LanguagesNotifier extends StateNotifier<Set<Language>> {
+  final _repo = LanguagesRepository();
+
+  LanguagesNotifier() : super({.pt}) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = await _repo.getLanguages();
+  }
+
+  Future<void> toggleLanguage(Language language) async {
+    final updated = {...state};
+    if (!updated.remove(language)) {
+      updated.add(language);
+    }
+    await _repo.setLanguages(updated);
+    state = updated;
   }
 }
 
