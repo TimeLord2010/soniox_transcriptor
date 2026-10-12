@@ -3,26 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-import '../modules/local_storage_module.dart';
+import '../providers/api_key_provider.dart';
 import '../protocols/show_toast.dart';
 
 class ApiKeySetter extends ConsumerStatefulWidget {
-  const ApiKeySetter({super.key, required this.onApiKeyChanged});
-
-  final void Function(String? value) onApiKeyChanged;
+  const ApiKeySetter({super.key});
 
   @override
   ConsumerState<ApiKeySetter> createState() => _ApiKeySetterState();
 }
 
 class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
-  final _apiKeyController = TextEditingController();
-
-  @override
-  void initState() {
-    _loadApiKey();
-    super.initState();
-  }
+  // Seeded once; the parent re-keys this widget per profile so the field
+  // shows the new profile's key after a switch.
+  late final _apiKeyController = TextEditingController(
+    text: ref.read(apiKeyProvider),
+  );
 
   @override
   void dispose() {
@@ -68,20 +64,8 @@ class _ApiKeySetterState extends ConsumerState<ApiKeySetter> {
 
   // MARK: Events
 
-  Future<void> _loadApiKey() async {
-    final savedKey = LocalStorageModule.getApiKey();
-    if (savedKey != null) {
-      setState(() {
-        _apiKeyController.text = savedKey;
-      });
-    }
-    widget.onApiKeyChanged(savedKey);
-  }
-
   Future<void> _saveApiKey() async {
-    var key = _apiKeyController.text.isEmpty ? null : _apiKeyController.text;
-    widget.onApiKeyChanged(key);
-    await LocalStorageModule.setApiKey(key);
+    await ref.read(apiKeyProvider.notifier).setApiKey(_apiKeyController.text);
     if (mounted) showToast(context, 'API key saved.');
   }
 }

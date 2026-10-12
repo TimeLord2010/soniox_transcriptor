@@ -1,12 +1,17 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soniox_transcriptor/repositories/profile_repository.dart';
 
 class TermsRepository {
-  static const _termsKey = 'terms';
+  TermsRepository(this.profileId);
+
+  final String profileId;
 
   SharedPreferences get _sp => GetIt.I.get<SharedPreferences>();
 
-  Future<List<String>> getAllTerms() async {
+  String get _termsKey => ProfileRepository.keyFor(profileId, 'terms');
+
+  List<String> getAllTerms() {
     return _sp.getStringList(_termsKey) ?? [];
   }
 

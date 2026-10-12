@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'components/pages/main_page.dart';
 import 'modules/database_module.dart';
+import 'repositories/profile_repository.dart';
 import 'repositories/transcription_repository.dart';
 
 void main() async {
@@ -17,6 +18,7 @@ void main() async {
 
   final prefs = await SharedPreferences.getInstance();
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
+  await ProfileRepository().migrateLegacySettings();
 
   final db = await DatabaseModule.open();
   GetIt.instance.registerSingleton<Database>(db);

@@ -1,33 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
+import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/context_repository.dart';
 import 'package:soniox_transcriptor/repositories/languages_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
 
 final contextProvider = StateNotifierProvider<ContextNotifier, String>(
-  (ref) => ContextNotifier(),
+  (ref) => ContextNotifier(ref.watch(activeProfileIdProvider)),
 );
 
 final languagesProvider =
     StateNotifierProvider<LanguagesNotifier, Set<Language>>(
-      (ref) => LanguagesNotifier(),
+      (ref) => LanguagesNotifier(ref.watch(activeProfileIdProvider)),
     );
 
 final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
-  (ref) => TermsNotifier(),
+  (ref) => TermsNotifier(ref.watch(activeProfileIdProvider)),
 );
 
 class ContextNotifier extends StateNotifier<String> {
-  final _repo = ContextRepository();
+  final ContextRepository _repo;
 
-  ContextNotifier() : super('') {
-    _load();
-  }
-
-  void _load() {
-    final context = _repo.getContext();
-    state = context;
-  }
+  ContextNotifier(String profileId)
+    : _repo = ContextRepository(profileId),
+      super(ContextRepository(profileId).getContext());
 
   Future<void> setContext(String text) async {
     await _repo.setContext(text);
@@ -36,15 +32,11 @@ class ContextNotifier extends StateNotifier<String> {
 }
 
 class LanguagesNotifier extends StateNotifier<Set<Language>> {
-  final _repo = LanguagesRepository();
+  final LanguagesRepository _repo;
 
-  LanguagesNotifier() : super({.pt}) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    state = await _repo.getLanguages();
-  }
+  LanguagesNotifier(String profileId)
+    : _repo = LanguagesRepository(profileId),
+      super(LanguagesRepository(profileId).getLanguages());
 
   Future<void> toggleLanguage(Language language) async {
     final updated = {...state};
@@ -57,24 +49,23 @@ class LanguagesNotifier extends StateNotifier<Set<Language>> {
 }
 
 class TermsNotifier extends StateNotifier<List<String>> {
-  final _repo = TermsRepository();
+  final TermsRepository _repo;
 
-  TermsNotifier() : super([]) {
-    _load();
-  }
+  TermsNotifier(String profileId)
+    : _repo = TermsRepository(profileId),
+      super(TermsRepository(profileId).getAllTerms());
 
-  Future<void> _load() async {
-    final terms = await _repo.getAllTerms();
-    state = terms;
+  void _load() {
+    state = _repo.getAllTerms();
   }
 
   Future<void> addTerm(String term) async {
     await _repo.addTerm(term);
-    await _load();
+    _load();
   }
 
   Future<void> deleteTerm(String term) async {
     await _repo.deleteTerm(term);
-    await _load();
+    _load();
   }
 }

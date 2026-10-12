@@ -1,19 +1,21 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import 'package:soniox_transcriptor/modules/local_storage_module.dart';
+import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
 import 'package:vit_dart_extensions/vit_dart_extensions.dart';
 
-class DevicePicker extends StatefulWidget {
+class DevicePicker extends ConsumerStatefulWidget {
   const DevicePicker({super.key, required this.recorder});
 
   final RecorderRepository recorder;
 
   @override
-  State<DevicePicker> createState() => _DevicePickerState();
+  ConsumerState<DevicePicker> createState() => _DevicePickerState();
 }
 
-class _DevicePickerState extends State<DevicePicker> {
+class _DevicePickerState extends ConsumerState<DevicePicker> {
   List<InputDevice> _devices = [];
   InputDevice? _selectedDevice;
 
@@ -80,13 +82,21 @@ class _DevicePickerState extends State<DevicePicker> {
       final picked = _devices[pickerIndex];
       setState(() => _selectedDevice = picked);
       recorder.selectedDevice = picked;
-      LocalStorageModule.setSelectedDeviceLabel(picked.label);
+      LocalStorageModule.setSelectedDeviceLabel(
+        ref.read(activeProfileIdProvider),
+        picked.label,
+      );
     });
   }
 
   void _restoreSelectedDevice() {
-    final savedLabel = LocalStorageModule.getSelectedDeviceLabel();
+    final savedLabel = LocalStorageModule.getSelectedDeviceLabel(
+      ref.read(activeProfileIdProvider),
+    );
     if (savedLabel == null) {
+      // Profile without a saved device: fall back to the system default.
+      setState(() => _selectedDevice = null);
+      recorder.selectedDevice = null;
       return;
     }
 
