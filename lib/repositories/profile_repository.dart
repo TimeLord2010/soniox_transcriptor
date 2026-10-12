@@ -5,9 +5,8 @@ import 'package:soniox_transcriptor/models/profile.dart';
 class ProfileRepository {
   static const _profilesKey = 'profiles.list';
   static const _activeKey = 'profiles.active';
-  static const _migratedKey = 'profiles.migrated';
 
-  /// Settings that live inside a profile, with their pre-profiles key names.
+  /// Settings that live inside a profile.
   static const settingKeys = [
     'api_key',
     'selected_input_device_label',
@@ -21,33 +20,6 @@ class ProfileRepository {
   /// Builds the preferences key for a setting of the given profile.
   static String keyFor(String profileId, String setting) {
     return 'profile.$profileId.$setting';
-  }
-
-  /// Moves the legacy, un-namespaced settings into the default profile.
-  /// Safe to call on every launch: it only runs once.
-  Future<void> migrateLegacySettings() async {
-    if (_sp.getBool(_migratedKey) ?? false) return;
-
-    for (final setting in settingKeys) {
-      final value = _sp.get(setting);
-      if (value == null) continue;
-      final target = keyFor(Profile.defaultId, setting);
-      // Never overwrite a value the default profile already has.
-      if (!_sp.containsKey(target)) {
-        // Lists come back from the platform as List<Object?>, never
-        // List<String>, so read them through getStringList.
-        if (value is String) {
-          await _sp.setString(target, value);
-        } else if (value is List) {
-          await _sp.setStringList(target, _sp.getStringList(setting)!);
-        } else {
-          // Unknown type: keep the legacy key rather than lose the data.
-          continue;
-        }
-      }
-      await _sp.remove(setting);
-    }
-    await _sp.setBool(_migratedKey, true);
   }
 
   /// All profiles, with the default profile always present and first.
