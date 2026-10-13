@@ -53,15 +53,27 @@ class HotkeyListener {
     await _hotkeyChannel.invokeMethod('showOverlay');
   }
 
-  static Future<void> hideOverlay() async {
-    await _hotkeyChannel.invokeMethod('hideOverlay');
+  /// Hides the overlay, optionally after [delay] so a message stays readable.
+  static Future<void> hideOverlay({Duration? delay}) async {
+    await _hotkeyChannel.invokeMethod(
+      'hideOverlay',
+      delay == null ? null : delay.inMilliseconds / 1000,
+    );
+  }
+
+  /// Puts the overlay in an error state showing [message].
+  static Future<void> showError(String message) async {
+    await _hotkeyChannel.invokeMethod('showError', message);
   }
 
   static Future<void> setListening() async {
     await _hotkeyChannel.invokeMethod('setListening');
   }
 
-  static Future<void> updateTranscription(String finalText, String nonFinalText) async {
+  static Future<void> updateTranscription(
+    String finalText,
+    String nonFinalText,
+  ) async {
     await _hotkeyChannel.invokeMethod('updateTranscription', {
       'finalText': finalText,
       'nonFinalText': nonFinalText,

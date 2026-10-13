@@ -24,6 +24,9 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
     private var statusDot: NSView?
     private var transcriptionLabel: NSTextField?
     private var dotTimer: Timer?
+    /// Bumped on every showOverlay so a delayed hide from a previous session
+    /// doesn't close the overlay of a newer one.
+    private var overlayGeneration = 0
 
     init(channel: FlutterMethodChannel) {
         self.channel = channel
@@ -136,6 +139,7 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             if self.overlayPanel == nil {
                 self.buildOverlayPanel()
             }
+            self.overlayGeneration += 1
 
             self.statusDot?.layer?.backgroundColor = NSColor.systemYellow.cgColor
             self.updateTranscriptionLabel(finalText: "", nonFinalText: "Conectando...")
@@ -158,6 +162,36 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             guard let self = self else { return }
             self.statusDot?.layer?.backgroundColor = NSColor.systemRed.cgColor
             self.updateTranscriptionLabel(finalText: "", nonFinalText: "Ouvindo...")
+        }
+    }
+
+    /// Switches the overlay to an error state. The overlay stays up until the
+    /// hotkey is released, then lingers a few seconds so the message is readable.
+    func showError(_ message: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.dotTimer?.invalidate()
+            self.dotTimer = nil
+            self.statusDot?.layer?.opacity = 1.0
+            self.statusDot?.layer?.backgroundColor = NSColor.systemOrange.cgColor
+            self.transcriptionLabel?.attributedStringValue = NSAttributedString(
+                string: message,
+                attributes: [
+                    .foregroundColor: NSColor.systemOrange,
+                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                ]
+            )
+        }
+    }
+
+    func hideOverlay(after delay: TimeInterval) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let generation = self.overlayGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, self.overlayGeneration == generation else { return }
+                self.hideOverlay()
+            }
         }
     }
 
@@ -292,7 +326,16 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
             showOverlay()
             result(nil)
         case "hideOverlay":
-            hideOverlay()
+            if let delay = call.arguments as? Double {
+                hideOverlay(after: delay)
+            } else {
+                hideOverlay()
+            }
+            result(nil)
+        case "showError":
+            if let message = call.arguments as? String {
+                showError(message)
+            }
             result(nil)
         case "setListening":
             setListening()

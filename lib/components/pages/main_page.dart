@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,6 +44,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<int>>? _recordStreamSubscription;
   StreamSubscription? _transcriptionSubscription;
+  StreamSubscription<String>? _errorSubscription;
   bool _isProcessing = false;
 
   int currentPage = 0;
@@ -213,6 +215,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     _connectionSubscription?.cancel();
     _recordStreamSubscription?.cancel();
     _transcriptionSubscription?.cancel();
+    _errorSubscription?.cancel();
 
     if (apiKey.isEmpty) {
       return;
@@ -254,6 +257,7 @@ class _MainPageState extends ConsumerState<MainPage> {
 
     final buffer = StringBuffer();
     String nonFinal = '';
+    String? sessionError;
 
     hotkeyListener.onKeyDown = () {
       if (_isProcessing) return;
@@ -270,13 +274,30 @@ class _MainPageState extends ConsumerState<MainPage> {
         HotkeyListener.updateTranscription(buffer.toString(), nonFinal);
       });
 
+      // Read errors from the raw messages: vit_soniox's `errors` stream never
+      // fires, since it expects `error_code` as a String while Soniox sends an
+      // int, so errors are dropped as empty transcriptions.
+      _errorSubscription?.cancel();
+      _errorSubscription = current.rawMessages.listen((message) {
+        final error = _parseSonioxError(message);
+        if (error == null || sessionError != null) return;
+        sessionError = error;
+        debugPrint('Soniox error: $error');
+        HotkeyListener.showError(error);
+        _recordStreamSubscription?.cancel();
+        recorder.stop();
+      });
+
       current.connect();
       debugPrint('Connect command');
     };
     hotkeyListener.onKeyUp = () {
       if (!_isProcessing) return;
 
-      HotkeyListener.hideOverlay();
+      // Keep an error on screen long enough to read after the key is released.
+      HotkeyListener.hideOverlay(
+        delay: sessionError == null ? null : const Duration(seconds: 4),
+      );
 
       var textToPast = buffer.toString() + nonFinal;
       if (textToPast.isNotEmpty) {
@@ -295,5 +316,22 @@ class _MainPageState extends ConsumerState<MainPage> {
       _isProcessing = false;
       _updateSonioxInstance();
     };
+  }
+
+  /// Returns a user-facing message if [message] is a Soniox error response.
+  String? _parseSonioxError(String message) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(message);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map || decoded['error_code'] == null) return null;
+    final code = decoded['error_code'].toString();
+    if (code == '401') {
+      return 'Chave Soniox inválida. Verifique a chave do perfil.';
+    }
+    final details = decoded['error_message'] ?? decoded['error_type'] ?? '';
+    return 'Erro Soniox ($code): $details';
   }
 }
