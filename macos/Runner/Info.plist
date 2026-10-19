@@ -32,7 +32,13 @@
 	<string>NSApplication</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app requires microphone access to transcribe audio.</string>
+	<!-- Impeller is disabled on purpose: the macOS Impeller back-buffer cache
+	     returns a wrong-size surface after a display/window size change (e.g.
+	     wake from sleep with an external monitor), which crashes the raster
+	     thread in impeller::Canvas::SetupRenderPass(). Upstream:
+	     flutter/flutter#185394, fix flutter/flutter#192522 (not released yet).
+	     Re-enable once a Flutter stable release ships that fix. -->
 	<key>FLTEnableImpeller</key>
-	<true/>
+	<false/>
 </dict>
 </plist>
