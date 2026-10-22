@@ -25,6 +25,13 @@ dependencies:
   path: ^1.8.3
   liquid_glass_widgets: ^0.12.8
 
+dependency_overrides:
+  # Fork local do record_macos 1.2.2 com a correção do dispositivo de entrada no
+  # macOS (ver third_party/record_macos/FORK.md). Temporário: sai quando o fix
+  # chegar ao pub.dev.
+  record_macos:
+    path: third_party/record_macos
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
