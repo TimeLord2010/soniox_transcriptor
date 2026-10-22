@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +43,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<int>>? _recordStreamSubscription;
   StreamSubscription? _transcriptionSubscription;
-  StreamSubscription<String>? _errorSubscription;
+  StreamSubscription<SonioxError>? _errorSubscription;
   bool _isProcessing = false;
 
   int currentPage = 0;
@@ -274,13 +273,10 @@ class _MainPageState extends ConsumerState<MainPage> {
         HotkeyListener.updateTranscription(buffer.toString(), nonFinal);
       });
 
-      // Read errors from the raw messages: vit_soniox's `errors` stream never
-      // fires, since it expects `error_code` as a String while Soniox sends an
-      // int, so errors are dropped as empty transcriptions.
       _errorSubscription?.cancel();
-      _errorSubscription = current.rawMessages.listen((message) {
-        final error = _parseSonioxError(message);
-        if (error == null || sessionError != null) return;
+      _errorSubscription = current.errors.listen((sonioxError) {
+        if (sessionError != null) return;
+        final error = _describeSonioxError(sonioxError);
         sessionError = error;
         debugPrint('Soniox error: $error');
         HotkeyListener.showError(error);
@@ -318,20 +314,12 @@ class _MainPageState extends ConsumerState<MainPage> {
     };
   }
 
-  /// Returns a user-facing message if [message] is a Soniox error response.
-  String? _parseSonioxError(String message) {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(message);
-    } on FormatException {
-      return null;
-    }
-    if (decoded is! Map || decoded['error_code'] == null) return null;
-    final code = decoded['error_code'].toString();
-    if (code == '401') {
-      return 'Chave Soniox inválida. Verifique a chave do perfil.';
-    }
-    final details = decoded['error_message'] ?? decoded['error_type'] ?? '';
-    return 'Erro Soniox ($code): $details';
+  String _describeSonioxError(SonioxError error) {
+    return switch (error.code) {
+      401 => 'Chave Soniox inválida. Verifique a chave do perfil.',
+      // vit_soniox reports a failed connection with code 0.
+      0 => 'Não foi possível conectar à Soniox: ${error.message}',
+      _ => 'Erro Soniox (${error.code}): ${error.message}',
+    };
   }
 }

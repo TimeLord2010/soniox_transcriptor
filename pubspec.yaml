@@ -16,7 +16,7 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
-  vit_soniox: ^1.0.0
+  vit_soniox: ^1.0.1
   record: ^6.2.1
   web_socket_channel: ^3.0.3
   vit_dart_extensions: ^4.2.0
