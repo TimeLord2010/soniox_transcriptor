@@ -45,6 +45,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<List<int>>? _recordStreamSubscription;
   StreamSubscription? _transcriptionSubscription;
   StreamSubscription<String>? _errorSubscription;
+  StreamSubscription<String>? _recorderErrorSubscription;
   bool _isProcessing = false;
 
   int currentPage = 0;
@@ -67,6 +68,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     // lifetime; the OS reclaims it on exit.
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
+    _recorderErrorSubscription?.cancel();
+    recorder.dispose();
     super.dispose();
   }
 
@@ -216,6 +219,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     _recordStreamSubscription?.cancel();
     _transcriptionSubscription?.cancel();
     _errorSubscription?.cancel();
+    _recorderErrorSubscription?.cancel();
 
     if (apiKey.isEmpty) {
       return;
@@ -246,6 +250,11 @@ class _MainPageState extends ConsumerState<MainPage> {
       if (connect) {
         HotkeyListener.setListening();
         await recorder.start();
+        if (!_isProcessing || !identical(current, soniox)) {
+          // The key was released while the capture was being (re)started.
+          await recorder.stop();
+          return;
+        }
         debugPrint('Recording...');
         _recordStreamSubscription = recorder.recordStream.listen((data) {
           current.addAudio(data);
@@ -258,6 +267,17 @@ class _MainPageState extends ConsumerState<MainPage> {
     final buffer = StringBuffer();
     String nonFinal = '';
     String? sessionError;
+
+    // The capture can fail (or die silently) without touching Soniox: show it
+    // in the overlay instead of leaving the user with an empty transcription.
+    _recorderErrorSubscription = recorder.errors.listen((message) {
+      if (!_isProcessing || sessionError != null) {
+        return;
+      }
+      sessionError = message;
+      HotkeyListener.showError(message);
+      _recordStreamSubscription?.cancel();
+    });
 
     hotkeyListener.onKeyDown = () {
       if (_isProcessing) return;
