@@ -23,7 +23,6 @@ dependencies:
   sqlite3: ^3.3.1
   path_provider: ^2.1.0
   path: ^1.8.3
-  liquid_glass_widgets: ^0.12.8
 
 dependency_overrides:
   # Fork local do record_macos 1.2.2 com a correção do dispositivo de entrada no

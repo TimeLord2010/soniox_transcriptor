@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:gap/gap.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
+
+import 'styles/ui.dart';
 
 class ContextTextSetter extends ConsumerStatefulWidget {
   const ContextTextSetter({super.key});
@@ -29,18 +31,20 @@ class _ContextTextSetterState extends ConsumerState<ContextTextSetter> {
   @override
   Widget build(BuildContext context) {
     return Column(
-      spacing: 5,
-      crossAxisAlignment: .start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Contexto'),
-        GlassTextArea(
+        const Text('Contexto', style: sectionLabelStyle),
+        const Gap(kLabelSpacing),
+        CupertinoTextField(
           controller: _controller,
+          minLines: 3,
           maxLines: 3,
-          useOwnLayer: true,
+          padding: const EdgeInsets.all(12),
+          decoration: fieldDecoration(),
+          style: const TextStyle(fontSize: 14),
           onChanged: (value) {
             ref.read(contextProvider.notifier).setContext(value);
           },
-          textStyle: TextStyle(color: Colors.black),
         ),
       ],
     );

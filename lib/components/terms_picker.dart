@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/mouse_enter_listener.dart';
-import 'package:soniox_transcriptor/components/styles/glass_config.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
+
+import 'styles/ui.dart';
 
 class TermsPicker extends ConsumerStatefulWidget {
   const TermsPicker({super.key});
@@ -15,50 +15,45 @@ class TermsPicker extends ConsumerStatefulWidget {
 
 class _TermsPickerState extends ConsumerState<TermsPicker> {
   final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<String> terms = ref.watch(termsProvider);
+    final terms = ref.watch(termsProvider);
     return Column(
-      crossAxisAlignment: .start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Termos'),
-        Gap(5),
-        GlassTextField(
+        const Text('Termos', style: sectionLabelStyle),
+        const Gap(kLabelSpacing),
+        CupertinoTextField(
           controller: _controller,
-          useOwnLayer: true,
-          textStyle: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
+          placeholder: 'Adicionar termo e pressionar Enter',
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: fieldDecoration(),
+          style: const TextStyle(fontSize: 14),
           onSubmitted: (value) async {
             if (value.isEmpty) return;
             await ref.read(termsProvider.notifier).addTerm(value);
             _controller.clear();
           },
         ),
-        Gap(10),
+        if (terms.isNotEmpty) const Gap(10),
         Wrap(
-          spacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            for (var term in terms)
+            for (final term in terms)
               MouseEnterListener(
                 builder: (context, isMouseInside, child) {
-                  return GlassChip(
+                  return _TermChip(
                     label: term,
-                    labelStyle: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
-                    settings: glassSettings,
-                    deleteIcon: SizedBox(
-                      width: 18,
-                      child: AnimatedCrossFade(
-                        duration: Duration(milliseconds: 300),
-                        crossFadeState: isMouseInside
-                            ? .showFirst
-                            : .showSecond,
-                        firstChild: Icon(
-                          Icons.delete,
-                          color: const Color.fromARGB(255, 156, 42, 34),
-                        ),
-                        secondChild: SizedBox.shrink(),
-                      ),
-                    ),
-                    onDeleted: () async {
+                    showDelete: isMouseInside,
+                    onDelete: () async {
                       await ref.read(termsProvider.notifier).deleteTerm(term);
                     },
                   );
@@ -67,6 +62,51 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Termo salvo. O botão de excluir só aparece com o mouse em cima, como antes.
+class _TermChip extends StatelessWidget {
+  const _TermChip({
+    required this.label,
+    required this.showDelete,
+    required this.onDelete,
+  });
+
+  final String label;
+  final bool showDelete;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(left: 10, right: 6, top: 6, bottom: 6),
+      decoration: fieldDecoration(radius: 14),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14)),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: showDelete
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: GestureDetector(
+              onTap: onDelete,
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(
+                  CupertinoIcons.xmark_circle_fill,
+                  size: 14,
+                  color: CupertinoColors.systemRed,
+                ),
+              ),
+            ),
+            secondChild: const SizedBox(width: 0, height: 14),
+          ),
+        ],
+      ),
     );
   }
 }
