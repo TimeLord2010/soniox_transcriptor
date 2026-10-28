@@ -1,15 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
 import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
 import 'package:soniox_transcriptor/components/profile_selector.dart';
-import 'package:soniox_transcriptor/components/styles/glass_config.dart';
+import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
@@ -61,9 +60,9 @@ class _MainPageState extends ConsumerState<MainPage> {
   @override
   void dispose() {
     // The native hotkey monitor is a single, app-global resource. MainPage can
-    // mount more than once (the LiquidGlass/theme wrapper rebuilds the subtree),
-    // and calling the static stop() here would tear down the monitor that a
-    // newer, still-alive MainPage just registered. Let it live for the app's
+    // mount more than once (a theme/shell rebuild replaces the subtree), and
+    // calling the static stop() here would tear down the monitor that a newer,
+    // still-alive MainPage just registered. Let it live for the app's
     // lifetime; the OS reclaims it on exit.
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
@@ -79,23 +78,35 @@ class _MainPageState extends ConsumerState<MainPage> {
     // Both can fire in the same frame on a switch; coalesce into one rebuild.
     ref.listen(apiKeyProvider, (_, _) => _scheduleSessionRebuild());
     ref.listen(activeProfileIdProvider, (_, _) => _scheduleSessionRebuild());
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 234, 239, 241),
-      body: _content(),
-      extendBody: true,
-      resizeToAvoidBottomInset: false,
-      bottomNavigationBar: GlassBottomBar(
-        quality: GlassQuality.premium,
-        glassSettings: glassSettings,
-        tabs: [
-          GlassBottomBarTab(icon: Icon(Icons.home, color: Colors.black)),
-          GlassBottomBarTab(icon: Icon(Icons.history, color: Colors.black)),
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      child: Stack(
+        children: [
+          Positioned.fill(child: _content()),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: CupertinoTabBar(
+              currentIndex: currentPage,
+              onTap: (value) {
+                setState(() => currentPage = value);
+              },
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.house),
+                  activeIcon: Icon(CupertinoIcons.house_fill),
+                  label: 'Início',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.clock),
+                  activeIcon: Icon(CupertinoIcons.clock_fill),
+                  label: 'Histórico',
+                ),
+              ],
+            ),
+          ),
         ],
-        selectedIndex: currentPage,
-        onTabSelected: (value) {
-          currentPage = value;
-          setState(() {});
-        },
       ),
     );
   }
@@ -103,8 +114,8 @@ class _MainPageState extends ConsumerState<MainPage> {
   Widget _content() {
     return switch (currentPage) {
       0 => _homePage(),
-      1 => TranscriptionsHistory(),
-      _ => Placeholder(),
+      1 => const TranscriptionsHistory(),
+      _ => const SizedBox.shrink(),
     };
   }
 
@@ -116,8 +127,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 100),
       child: Column(
-        crossAxisAlignment: .start,
-        spacing: 20,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: kSectionSpacing,
         children: [
           ProfileSelector(),
           if (!hasApiKey) _missingApiKeyNotice(),
@@ -133,18 +144,24 @@ class _MainPageState extends ConsumerState<MainPage> {
   }
 
   Widget _missingApiKeyNotice() {
-    return GlassCard(
-      useOwnLayer: true,
+    return Container(
       padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemOrange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
-        spacing: 12,
         children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
-          Expanded(
+          const Icon(
+            CupertinoIcons.exclamationmark_triangle_fill,
+            color: CupertinoColors.systemOrange,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Text(
               'Este perfil não tem chave Soniox. O atalho não vai gravar '
               'até que uma chave seja definida.',
-              style: TextStyle(color: Colors.black),
+              style: TextStyle(fontSize: 14),
             ),
           ),
         ],
@@ -154,16 +171,18 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   Column _sandbox() {
     return Column(
-      crossAxisAlignment: .start,
-      spacing: 5,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Sandbox'),
-        GlassTextArea(
+        const Text('Sandbox', style: sectionLabelStyle),
+        const SizedBox(height: kLabelSpacing),
+        CupertinoTextField(
           controller: _sandboxController,
           focusNode: _sandboxFocusNode,
+          minLines: 5,
           maxLines: 5,
-          useOwnLayer: true,
-          textStyle: TextStyle(color: Colors.black),
+          padding: const EdgeInsets.all(12),
+          decoration: fieldDecoration(),
+          style: const TextStyle(fontSize: 14),
         ),
       ],
     );
