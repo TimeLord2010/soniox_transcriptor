@@ -25,11 +25,21 @@ dependencies:
   path: ^1.8.3
 
 dependency_overrides:
-  # Fork local do record_macos 1.2.2 com a correção do dispositivo de entrada no
-  # macOS (ver third_party/record_macos/FORK.md). Temporário: sai quando o fix
-  # chegar ao pub.dev.
-  record_macos:
-    path: third_party/record_macos
+  # Hardware test of upstream record (branch fix/macos-keep-selected-input).
+  record:
+    path: /Users/vini/projects/vit/record/record
+  record_darwin:
+    path: /Users/vini/projects/vit/record/record_darwin
+  record_platform_interface:
+    path: /Users/vini/projects/vit/record/record_platform_interface
+  record_android:
+    path: /Users/vini/projects/vit/record/record_android
+  record_linux:
+    path: /Users/vini/projects/vit/record/record_linux
+  record_web:
+    path: /Users/vini/projects/vit/record/record_web
+  record_windows:
+    path: /Users/vini/projects/vit/record/record_windows
 
 dev_dependencies:
   flutter_test:
