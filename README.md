@@ -26,6 +26,12 @@ gravar sempre visível acima da caixa e as ações Copiar/Limpar no cabeçalho. 
 sessão aberta pelo botão entrega o texto na sandbox em qualquer plataforma — no
 macOS inclusive, já que ali o app em foco seria o próprio app.
 
+O checkbox **Diarização** (também na aba da sandbox, salvo por perfil) liga
+`enable_speaker_diarization` na sessão: o texto final passa a sair com o falante
+na frente de cada bloco (`Falante 1: …`, `Falante 2: …`), uma linha por bloco. O
+Soniox entrega o falante por token, então quem monta esse formato é o app
+(`lib/modules/diarized_text.dart`), não o pacote.
+
 A decisão de capacidade fica em `lib/modules/platform_support.dart` — não
 espalhe `Platform.isMacOS` pelo código.
 
