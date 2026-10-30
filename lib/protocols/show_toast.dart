@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 void showToast(BuildContext context, String message) {
   final overlay = Overlay.of(context);
+  // O toast fica no rodapé: sem o inset, na barra de gestos do Android ele
+  // apareceria atrás do sistema.
+  final bottomInset = MediaQuery.paddingOf(context).bottom;
 
   final entry = OverlayEntry(
     builder: (_) {
@@ -16,7 +19,7 @@ void showToast(BuildContext context, String message) {
           ),
         ],
         child: Positioned(
-          bottom: -20,
+          bottom: bottomInset - 20,
           left: 20,
           right: 20,
           child: CupertinoPopupSurface(

@@ -100,33 +100,38 @@ class _MainPageState extends ConsumerState<MainPage> {
     ref.listen(activeProfileIdProvider, (_, _) => _scheduleSessionRebuild());
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
-      child: Stack(
-        children: [
-          Positioned.fill(child: _content()),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: CupertinoTabBar(
-              currentIndex: currentPage,
-              onTap: (value) {
-                setState(() => currentPage = value);
-              },
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.house),
-                  activeIcon: Icon(CupertinoIcons.house_fill),
-                  label: 'Início',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.clock),
-                  activeIcon: Icon(CupertinoIcons.clock_fill),
-                  label: 'Histórico',
-                ),
-              ],
+      // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
+      // fica atrás da barra de status/recorte e a tab bar atrás da barra de
+      // gestos. No macOS os insets são zero, então nada muda.
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(child: _content()),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: CupertinoTabBar(
+                currentIndex: currentPage,
+                onTap: (value) {
+                  setState(() => currentPage = value);
+                },
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(CupertinoIcons.house),
+                    activeIcon: Icon(CupertinoIcons.house_fill),
+                    label: 'Início',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(CupertinoIcons.clock),
+                    activeIcon: Icon(CupertinoIcons.clock_fill),
+                    label: 'Histórico',
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

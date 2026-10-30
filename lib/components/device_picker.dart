@@ -66,16 +66,25 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
 
     showCupertinoModalPopup<void>(
       context: context,
-      builder: (_) => Container(
-        height: 216,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: CupertinoPicker(
-          scrollController: FixedExtentScrollController(
-            initialItem: initialIndex,
+      builder: (popupContext) => Container(
+        // O sheet encosta no rodapé: o inset inferior mantém a roda acima da
+        // barra de gestos do Android (no macOS o inset é zero).
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.paddingOf(popupContext).bottom,
+        ),
+        color: CupertinoColors.systemBackground.resolveFrom(popupContext),
+        child: SizedBox(
+          height: 216,
+          child: CupertinoPicker(
+            scrollController: FixedExtentScrollController(
+              initialItem: initialIndex,
+            ),
+            itemExtent: 36,
+            onSelectedItemChanged: (i) => pickerIndex = i,
+            children: _devices
+                .map((d) => Center(child: Text(d.label)))
+                .toList(),
           ),
-          itemExtent: 36,
-          onSelectedItemChanged: (i) => pickerIndex = i,
-          children: _devices.map((d) => Center(child: Text(d.label))).toList(),
         ),
       ),
     ).then((_) {
