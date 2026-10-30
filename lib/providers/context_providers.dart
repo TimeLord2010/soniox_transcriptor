@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/context_repository.dart';
+import 'package:soniox_transcriptor/repositories/diarization_repository.dart';
 import 'package:soniox_transcriptor/repositories/languages_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
 
@@ -16,6 +17,10 @@ final languagesProvider =
 
 final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
   (ref) => TermsNotifier(ref.watch(activeProfileIdProvider)),
+);
+
+final diarizationProvider = StateNotifierProvider<DiarizationNotifier, bool>(
+  (ref) => DiarizationNotifier(ref.watch(activeProfileIdProvider)),
 );
 
 class ContextNotifier extends StateNotifier<String> {
@@ -67,5 +72,18 @@ class TermsNotifier extends StateNotifier<List<String>> {
   Future<void> deleteTerm(String term) async {
     await _repo.deleteTerm(term);
     _load();
+  }
+}
+
+class DiarizationNotifier extends StateNotifier<bool> {
+  final DiarizationRepository _repo;
+
+  DiarizationNotifier(String profileId)
+    : _repo = DiarizationRepository(profileId),
+      super(DiarizationRepository(profileId).getSpeakerDiarization());
+
+  Future<void> setDiarization(bool enabled) async {
+    await _repo.setSpeakerDiarization(enabled);
+    state = enabled;
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
+import 'package:soniox_transcriptor/components/checkbox_row.dart';
 import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
@@ -14,6 +15,7 @@ import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/modules/diarized_text.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
 import 'package:soniox_transcriptor/protocols/show_toast.dart';
 import 'package:soniox_transcriptor/providers/api_key_provider.dart';
@@ -75,6 +77,10 @@ class _MainPageState extends ConsumerState<MainPage> {
   /// appended to it instead of overwriting what the user had typed.
   String _sandboxBaseText = '';
 
+  /// Preenchido só na sessão com diarização ligada: monta o texto final com o
+  /// rótulo do falante. Criado por sessão para zerar o falante corrente.
+  DiarizedTextBuilder? _diarized;
+
   int currentPage = 0;
 
   @override
@@ -109,6 +115,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     // Both can fire in the same frame on a switch; coalesce into one rebuild.
     ref.listen(apiKeyProvider, (_, _) => _scheduleSessionRebuild());
     ref.listen(activeProfileIdProvider, (_, _) => _scheduleSessionRebuild());
+    // A diarização é parâmetro de sessão: mudar a caixa de marcar reconstrói a
+    // conexão com o Soniox (só vale na próxima captura, como a chave/termos).
+    ref.listen(diarizationProvider, (_, _) => _scheduleSessionRebuild());
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -184,18 +193,28 @@ class _MainPageState extends ConsumerState<MainPage> {
   }
 
   /// A aba da sandbox: captura comandada pelo botão (sempre visível, nas duas
-  /// plataformas) e a caixa onde o texto ao vivo aparece.
+  /// plataformas), a opção de diarização e a caixa onde o texto ao vivo aparece.
   ///
   /// Sem rolagem na página: a caixa ocupa toda a altura que sobra da aba (a
   /// barra inferior flutua sobre o conteúdo, daí o recuo de 58 px no rodapé).
   Widget _sandboxPage() {
     final hasApiKey = ref.watch(apiKeyProvider).isNotEmpty;
+    final diarization = ref.watch(diarizationProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 58),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _recordControl(hasApiKey),
+          const SizedBox(height: kSectionSpacing),
+          CheckboxRow(
+            key: const ValueKey('sandbox-diarization'),
+            label: 'Diarização',
+            hint: 'separa quem falou no texto',
+            value: diarization,
+            onChanged: (enabled) =>
+                ref.read(diarizationProvider.notifier).setDiarization(enabled),
+          ),
           const SizedBox(height: kSectionSpacing),
           Expanded(child: _sandbox()),
         ],
@@ -409,6 +428,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     var languageValues = ref.read(languagesProvider);
     var languages = languageValues.map((x) => x.name).toList();
     var cText = ref.read(contextProvider);
+    var diarization = ref.read(diarizationProvider);
 
     // Updating state
     debugPrint('Creating soniox websocket with api key');
@@ -418,6 +438,7 @@ class _MainPageState extends ConsumerState<MainPage> {
       audio: AudioConfig.pcms16le(),
       languageHints: languages,
       languageStrict: languages.isNotEmpty,
+      speakerDiarization: diarization,
       context: SessionContext(text: cText, terms: terms),
     );
     var current = soniox = SonioxWebsocket(
@@ -467,6 +488,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     _buffer.clear();
     _nonFinal = '';
     _sessionError = null;
+    _diarized = null;
   }
 
   // MARK: Sessão (transporte independente de plataforma)
@@ -491,13 +513,29 @@ class _MainPageState extends ConsumerState<MainPage> {
     if (mounted) setState(() {});
 
     _sandboxBaseText = _sandboxController.text;
+    // Diarização congela no início da sessão: mudar a caixa no meio de uma
+    // captura não pode trocar o formato do texto que já está sendo escrito.
+    _diarized = ref.read(diarizationProvider) ? DiarizedTextBuilder() : null;
+
     // Sessão do botão já mostra o andamento na própria sandbox: o painel
     // flutuante é do caminho da tecla global, que roda longe do app.
     if (!_sessionFromButton) HotkeyListener.showOverlay();
 
     _transcriptionSubscription?.cancel();
     _transcriptionSubscription = current.transcription.listen((transcription) {
-      _buffer.write(transcription.finalText);
+      final diarized = _diarized;
+      if (diarized == null) {
+        _buffer.write(transcription.finalText);
+      } else {
+        _buffer.write(
+          diarized.take(
+            transcription.finalTokens,
+            // Base da sandbox ou falas anteriores: define a quebra de linha
+            // antes do primeiro rótulo de falante.
+            followsText: _sandboxBaseText.isNotEmpty || _buffer.isNotEmpty,
+          ),
+        );
+      }
       _nonFinal = transcription.nonFinalText;
       _showLiveText();
     });

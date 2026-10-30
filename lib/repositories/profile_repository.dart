@@ -13,6 +13,7 @@ class ProfileRepository {
     'context_text',
     'terms',
     'languages',
+    'speaker_diarization',
   ];
 
   SharedPreferences get _sp => GetIt.I.get<SharedPreferences>();
