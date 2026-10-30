@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
@@ -8,10 +9,13 @@ import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
 import 'package:soniox_transcriptor/components/profile_selector.dart';
+import 'package:soniox_transcriptor/components/record_button.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/modules/platform_support.dart';
+import 'package:soniox_transcriptor/protocols/show_toast.dart';
 import 'package:soniox_transcriptor/providers/api_key_provider.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
 import 'package:soniox_transcriptor/providers/history_provider.dart';
@@ -46,14 +50,30 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<String>? _recorderErrorSubscription;
   bool _isProcessing = false;
 
+  /// Só as plataformas sem atalho global usam o botão de gravar.
+  bool _recording = false;
+
+  // Session state. Lives in fields (not in the session-setup closures) so both
+  // transports — the macOS hotkey and the on-screen button — drive the same
+  // capture.
+  final _buffer = StringBuffer();
+  String _nonFinal = '';
+  String? _sessionError;
+
+  /// Sandbox content at the moment the capture started; the live text is
+  /// appended to it instead of overwriting what the user had typed.
+  String _sandboxBaseText = '';
+
   int currentPage = 0;
 
   @override
   void initState() {
     super.initState();
-    hotkeyListener.start().catchError((Object e) {
-      debugPrint('[MainPage] hotkeyListener.start() error: $e');
-    });
+    if (PlatformSupport.supportsGlobalHotkey) {
+      hotkeyListener.start().catchError((Object e) {
+        debugPrint('[MainPage] hotkeyListener.start() error: $e');
+      });
+    }
     _updateSonioxInstance();
   }
 
@@ -137,6 +157,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           TermsPicker(),
           LanguagePicker(),
           ContextTextSetter(key: ValueKey('context-$profileId')),
+          if (!PlatformSupport.supportsGlobalHotkey) _recordControl(hasApiKey),
           _sandbox(),
         ],
       ),
@@ -157,15 +178,27 @@ class _MainPageState extends ConsumerState<MainPage> {
             color: CupertinoColors.systemOrange,
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Este perfil não tem chave Soniox. O atalho não vai gravar '
-              'até que uma chave seja definida.',
-              style: TextStyle(fontSize: 14),
+              PlatformSupport.supportsGlobalHotkey
+                  ? 'Este perfil não tem chave Soniox. O atalho não vai gravar '
+                        'até que uma chave seja definida.'
+                  : 'Este perfil não tem chave Soniox. Gravar não vai '
+                        'funcionar até que uma chave seja definida.',
+              style: const TextStyle(fontSize: 14),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Comando de captura onde não existe tecla global: no Android é o único jeito
+  /// de abrir uma sessão, por isso fica logo acima da sandbox.
+  Widget _recordControl(bool hasApiKey) {
+    return RecordButton(
+      isRecording: _recording,
+      onPressed: () => _toggleRecording(hasApiKey),
     );
   }
 
@@ -231,6 +264,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     // Reset
     hotkeyListener.onKeyDown = () {};
     hotkeyListener.onKeyUp = () {};
+    _resetSessionState();
     soniox?.disconnect();
     recorder.stop();
     _connectionSubscription?.cancel();
@@ -282,75 +316,176 @@ class _MainPageState extends ConsumerState<MainPage> {
       }
     });
 
-    final buffer = StringBuffer();
-    String nonFinal = '';
-    String? sessionError;
-
-    // The capture can fail (or die silently) without touching Soniox: show it
-    // in the overlay instead of leaving the user with an empty transcription.
+    // The capture can fail (or die silently) without touching Soniox: report it
+    // instead of leaving the user with an empty transcription.
     _recorderErrorSubscription = recorder.errors.listen((message) {
-      if (!_isProcessing || sessionError != null) {
+      if (!_isProcessing || _sessionError != null) {
         return;
       }
-      sessionError = message;
-      HotkeyListener.showError(message);
+      _sessionError = message;
+      _failSession(message);
       _recordStreamSubscription?.cancel();
     });
 
-    hotkeyListener.onKeyDown = () {
-      if (_isProcessing) return;
-      _isProcessing = true;
+    // A tecla global existe apenas no macOS, e lá é ela o transporte da sessão.
+    // Nas outras plataformas o botão de gravar chama estes mesmos métodos.
+    if (PlatformSupport.supportsGlobalHotkey) {
+      hotkeyListener.onKeyDown = _startSession;
+      hotkeyListener.onKeyUp = _finishSession;
+    }
+  }
 
-      HotkeyListener.showOverlay();
+  void _resetSessionState() {
+    _buffer.clear();
+    _nonFinal = '';
+    _sessionError = null;
+  }
 
-      _transcriptionSubscription?.cancel();
-      _transcriptionSubscription = current.transcription.listen((
-        transcription,
-      ) {
-        buffer.write(transcription.finalText);
-        nonFinal = transcription.nonFinalText;
-        HotkeyListener.updateTranscription(buffer.toString(), nonFinal);
-      });
+  // MARK: Sessão (transporte independente de plataforma)
 
-      _errorSubscription?.cancel();
-      _errorSubscription = current.errors.listen((sonioxError) {
-        if (sessionError != null) return;
-        final error = _describeSonioxError(sonioxError);
-        sessionError = error;
-        debugPrint('Soniox error: $error');
-        HotkeyListener.showError(error);
-        _recordStreamSubscription?.cancel();
-        recorder.stop();
-      });
-
-      current.connect();
-      debugPrint('Connect command');
-    };
-    hotkeyListener.onKeyUp = () {
-      if (!_isProcessing) return;
-
-      // Keep an error on screen long enough to read after the key is released.
-      HotkeyListener.hideOverlay(
-        delay: sessionError == null ? null : const Duration(seconds: 4),
+  /// Abre a captura. Chamado pela tecla global (macOS) ou pelo botão de gravar.
+  void _startSession() {
+    final current = soniox;
+    if (current == null) {
+      _reportError(
+        'Nenhuma chave Soniox no perfil ativo. Salve a chave antes de gravar.',
       );
+      return;
+    }
+    if (_isProcessing) return;
+    _isProcessing = true;
+    _recording = true;
+    if (mounted) setState(() {});
 
-      var textToPast = buffer.toString() + nonFinal;
-      if (textToPast.isNotEmpty) {
-        GetIt.I.get<TranscriptionRepository>().insert(
-          TranscriptionRecord(
-            finalText: buffer.toString(),
-            nonFinalText: nonFinal,
-            createdAt: DateTime.now(),
-          ),
-        );
-        ref.invalidate(historyProvider);
-        HotkeyListener.pasteText(textToPast);
-      }
-      current.disconnect();
+    _sandboxBaseText = _sandboxController.text;
+    HotkeyListener.showOverlay();
+
+    _transcriptionSubscription?.cancel();
+    _transcriptionSubscription = current.transcription.listen((transcription) {
+      _buffer.write(transcription.finalText);
+      _nonFinal = transcription.nonFinalText;
+      _showLiveText();
+    });
+
+    _errorSubscription?.cancel();
+    _errorSubscription = current.errors.listen((sonioxError) {
+      if (_sessionError != null) return;
+      final error = _describeSonioxError(sonioxError);
+      _sessionError = error;
+      debugPrint('Soniox error: $error');
+      _failSession(error);
+      _recordStreamSubscription?.cancel();
       recorder.stop();
-      _isProcessing = false;
-      _updateSonioxInstance();
-    };
+    });
+
+    current.connect();
+    debugPrint('Connect command');
+  }
+
+  /// Fecha a captura e entrega o texto: colado no app em foco (macOS) ou
+  /// deixado na sandbox + área de transferência (Android).
+  void _finishSession() {
+    if (!_isProcessing) return;
+
+    final finalText = _buffer.toString();
+    final fullText = finalText + _nonFinal;
+    final hadError = _sessionError != null;
+
+    // Keep an error on screen long enough to read after the key is released.
+    HotkeyListener.hideOverlay(
+      delay: hadError ? const Duration(seconds: 4) : null,
+    );
+
+    if (fullText.isNotEmpty) {
+      GetIt.I.get<TranscriptionRepository>().insert(
+        TranscriptionRecord(
+          finalText: finalText,
+          nonFinalText: _nonFinal,
+          createdAt: DateTime.now(),
+        ),
+      );
+      ref.invalidate(historyProvider);
+      if (PlatformSupport.canPasteIntoOtherApp) {
+        HotkeyListener.pasteText(fullText);
+      } else {
+        _deliverToSandbox(fullText);
+      }
+    }
+    soniox?.disconnect();
+    recorder.stop();
+    _isProcessing = false;
+    _recording = false;
+    if (mounted) setState(() {});
+    _updateSonioxInstance();
+  }
+
+  /// Liga/desliga a captura pelo botão (plataformas sem tecla global).
+  Future<void> _toggleRecording(bool hasApiKey) async {
+    if (!hasApiKey) {
+      showToast(context, 'Salve a chave Soniox do perfil para gravar.');
+      return;
+    }
+    if (_recording) {
+      _finishSession();
+      return;
+    }
+    // O diálogo de permissão do sistema aparece aqui: pedir dentro da sessão
+    // gastaria uma conexão com a Soniox só para descobrir que falta o microfone.
+    final allowed = await recorder.requestMicPermission();
+    if (!allowed) {
+      if (mounted) {
+        showToast(context, RecorderRepository.permissionDeniedMessage);
+      }
+      return;
+    }
+    if (!mounted) return;
+    _startSession();
+  }
+
+  /// Andamento da transcrição: painel flutuante no macOS; sem painel, o texto
+  /// vai aparecendo na própria sandbox.
+  void _showLiveText() {
+    final finalText = _buffer.toString();
+    if (PlatformSupport.supportsGlobalHotkey) {
+      HotkeyListener.updateTranscription(finalText, _nonFinal);
+      return;
+    }
+    _setSandboxText('$_sandboxBaseText$finalText$_nonFinal');
+  }
+
+  /// Erro visível: painel flutuante no macOS, toast dentro do app nas demais.
+  void _reportError(String message) {
+    if (PlatformSupport.supportsGlobalHotkey) {
+      HotkeyListener.showError(message);
+      return;
+    }
+    if (!mounted) return;
+    showToast(context, message);
+  }
+
+  /// Erro no meio da sessão. Onde não existe tecla global também não existe
+  /// "soltar a tecla" para encerrar a captura: fecha a sessão aqui mesmo, senão
+  /// o botão ficaria preso em "Ouvindo…" sem nada chegando.
+  void _failSession(String message) {
+    _reportError(message);
+    if (!PlatformSupport.supportsGlobalHotkey) _finishSession();
+  }
+
+  /// Sem colagem sintética, o resultado final fica na sandbox (já com o texto
+  /// ao vivo) e vai para a área de transferência, pronta para outro app.
+  void _deliverToSandbox(String text) {
+    _setSandboxText('$_sandboxBaseText$text');
+    Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      showToast(context, 'Transcrição copiada para a área de transferência.');
+    }
+  }
+
+  void _setSandboxText(String text) {
+    _sandboxController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 
   String _describeSonioxError(SonioxError error) {
