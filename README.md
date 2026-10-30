@@ -7,8 +7,8 @@ contexto por perfil).
 
 | Plataforma | Papel | Como a captura começa | Onde o texto vai |
 | --- | --- | --- | --- |
-| macOS | alvo principal | tecla global (Option direito), com painel flutuante | colado no app em foco |
-| Android | alvo secundário | botão **Toque para gravar** na tela inicial | sandbox + área de transferência |
+| macOS | alvo principal | tecla global (Option direito), com painel flutuante; ou botão **Clique para gravar** | tecla: colado no app em foco · botão: sandbox + área de transferência |
+| Android | alvo secundário | botão **Toque para gravar** | sandbox + área de transferência |
 
 O macOS é um app de bandeja: fica em segundo plano e o usuário segura a tecla
 global em qualquer app; um pop‑up discreto mostra a transcrição e o texto final
@@ -20,6 +20,11 @@ toque: o botão abre e fecha a sessão, o texto aparece ao vivo na sandbox e o
 resultado final também fica na área de transferência. Perfis, chave Soniox,
 termos, idiomas, contexto, dispositivos de entrada e histórico funcionam igual
 nas duas plataformas.
+
+A **sandbox é uma aba própria** (Início · Sandbox · Histórico), com o botão de
+gravar sempre visível acima da caixa e as ações Copiar/Limpar no cabeçalho. A
+sessão aberta pelo botão entrega o texto na sandbox em qualquer plataforma — no
+macOS inclusive, já que ali o app em foco seria o próprio app.
 
 A decisão de capacidade fica em `lib/modules/platform_support.dart` — não
 espalhe `Platform.isMacOS` pelo código.

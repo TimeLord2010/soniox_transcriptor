@@ -54,3 +54,10 @@ Future<void> pumpCupertinoWidget(WidgetTester tester, Widget child) async {
   );
   await tester.pump();
 }
+
+/// Abre a aba da sandbox pela barra inferior. O rótulo "Sandbox" só aparece uma
+/// vez antes da troca (na barra); depois dela há também o título da seção.
+Future<void> openSandboxTab(WidgetTester tester) async {
+  await tester.tap(find.text('Sandbox'));
+  await tester.pump();
+}

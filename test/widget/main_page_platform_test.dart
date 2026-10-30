@@ -5,33 +5,32 @@ import 'package:soniox_transcriptor/modules/platform_support.dart';
 
 import '../helpers/widget_harness.dart';
 
-/// O Android é plataforma suportada mas não tem tecla global: a captura é
-/// comandada por toque e o texto fica na sandbox. Estes testes fixam essa
-/// diferença (rodam no host macOS, por isso a capacidade é forçada).
+/// A captura por botão existe nas duas plataformas: no Android é o único
+/// transporte; no macOS convive com a tecla global (que continua colando no app
+/// em foco). Estes testes rodam no host macOS, por isso a capacidade é forçada.
 void main() {
   tearDown(() => PlatformSupport.debugForceSupportsGlobalHotkey(null));
 
-  testWidgets('sem atalho global a tela mostra o botão de gravar', (
-    tester,
-  ) async {
-    PlatformSupport.debugForceSupportsGlobalHotkey(false);
-    await setUpAppEnvironment();
-    await pumpCupertinoWidget(tester, const MainPage());
+  for (final hasHotkey in [false, true]) {
+    final onde = hasHotkey
+        ? 'macOS (com atalho global)'
+        : 'Android (sem atalho)';
+    final rotulo = hasHotkey ? 'Clique para gravar' : 'Toque para gravar';
 
-    expect(find.text('Toque para gravar'), findsOneWidget);
-    expect(find.text('Sandbox'), findsOneWidget);
-  });
+    testWidgets('aba Sandbox tem o botão de gravar em $onde', (tester) async {
+      PlatformSupport.debugForceSupportsGlobalHotkey(hasHotkey);
+      await setUpAppEnvironment();
+      await pumpCupertinoWidget(tester, const MainPage());
 
-  testWidgets('com atalho global (macOS) não existe botão de gravar', (
-    tester,
-  ) async {
-    PlatformSupport.debugForceSupportsGlobalHotkey(true);
-    await setUpAppEnvironment();
-    await pumpCupertinoWidget(tester, const MainPage());
+      // A tela inicial é de ajustes: o botão vive na aba da sandbox.
+      expect(find.textContaining('para gravar'), findsNothing);
 
-    expect(find.text('Toque para gravar'), findsNothing);
-    expect(find.text('Ouvindo… toque para parar'), findsNothing);
-  });
+      await openSandboxTab(tester);
+
+      expect(find.text(rotulo), findsOneWidget);
+      expect(find.byKey(const ValueKey('sandbox-field')), findsOneWidget);
+    });
+  }
 
   testWidgets('gravar sem chave no perfil avisa em vez de abrir sessão', (
     tester,
@@ -39,6 +38,7 @@ void main() {
     PlatformSupport.debugForceSupportsGlobalHotkey(false);
     await setUpAppEnvironment();
     await pumpCupertinoWidget(tester, const MainPage());
+    await openSandboxTab(tester);
 
     await tester.tap(find.text('Toque para gravar'));
     await tester.pump();

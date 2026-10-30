@@ -1,18 +1,23 @@
 import 'package:flutter/cupertino.dart';
 
-/// Comando de gravação das plataformas sem atalho global (Android).
+/// Comando de gravação por toque/clique, disponível nas duas plataformas.
 ///
-/// No macOS a sessão é disparada pela tecla global, com painel flutuante e
-/// colagem no app em foco. Onde essas capacidades não existem, o usuário abre e
-/// fecha a captura tocando aqui, e o texto aparece na sandbox.
+/// No Android é o único jeito de abrir a captura. No macOS convive com a tecla
+/// global: a tecla cola o resultado no app em foco, enquanto a sessão aberta
+/// aqui entrega o texto na sandbox.
 class RecordButton extends StatelessWidget {
   const RecordButton({
     super.key,
     required this.isRecording,
+    required this.pointerVerb,
     required this.onPressed,
   });
 
   final bool isRecording;
+
+  /// Verbo do gesto: `Clique` no desktop, `Toque` no celular.
+  final String pointerVerb;
+
   final VoidCallback onPressed;
 
   @override
@@ -44,7 +49,9 @@ class RecordButton extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              isRecording ? 'Ouvindo… toque para parar' : 'Toque para gravar',
+              isRecording
+                  ? 'Ouvindo… ${pointerVerb.toLowerCase()} para parar'
+                  : '$pointerVerb para gravar',
               style: TextStyle(
                 color: color,
                 fontSize: 15,
