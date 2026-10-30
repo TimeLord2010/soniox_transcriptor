@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import 'package:soniox_transcriptor/modules/platform_support.dart';
+
 /// Bridges Flutter to the native macOS hotkey plugin.
 ///
 /// The native side lives in [macos/Runner/HotkeyPlugin.swift]. It uses
@@ -18,8 +20,14 @@ import 'package:flutter/services.dart';
 /// that shows a pulsing red dot and the live transcription text. Text pasting
 /// is done by writing to `NSPasteboard` and synthesizing a `CGEvent` Cmd+V
 /// keystroke directed at whatever app previously had focus.
+/// Fora do macOS não existe handler nativo para o canal: toda chamada daqui é
+/// ignorada em vez de virar `MissingPluginException` no log (o Android comanda a
+/// sessão pelo botão de gravar).
 class HotkeyListener {
   static const _hotkeyChannel = MethodChannel('hotkey_plugin');
+
+  /// O plugin nativo só é registrado no runner do macOS.
+  static bool get isSupported => PlatformSupport.supportsGlobalHotkey;
 
   void Function() onKeyDown;
   void Function() onKeyUp;
@@ -34,27 +42,32 @@ class HotkeyListener {
     required this.onKeyUp,
     this.onInsertText,
   }) {
-    _hotkeyChannel.setMethodCallHandler(_onMethodCall);
+    if (isSupported) _hotkeyChannel.setMethodCallHandler(_onMethodCall);
   }
 
   Future<void> start() async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('start');
   }
 
   static Future<void> stop() async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('stop');
   }
 
   static Future<void> pasteText(String text) async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('pasteText', text);
   }
 
   static Future<void> showOverlay() async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('showOverlay');
   }
 
   /// Hides the overlay, optionally after [delay] so a message stays readable.
   static Future<void> hideOverlay({Duration? delay}) async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod(
       'hideOverlay',
       delay == null ? null : delay.inMilliseconds / 1000,
@@ -63,10 +76,12 @@ class HotkeyListener {
 
   /// Puts the overlay in an error state showing [message].
   static Future<void> showError(String message) async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('showError', message);
   }
 
   static Future<void> setListening() async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('setListening');
   }
 
@@ -74,6 +89,7 @@ class HotkeyListener {
     String finalText,
     String nonFinalText,
   ) async {
+    if (!isSupported) return;
     await _hotkeyChannel.invokeMethod('updateTranscription', {
       'finalText': finalText,
       'nonFinalText': nonFinalText,

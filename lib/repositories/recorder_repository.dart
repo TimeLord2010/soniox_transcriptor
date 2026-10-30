@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -42,19 +43,43 @@ class RecorderRepository {
   List<InputDevice> devices = [];
   InputDevice? selectedDevice;
 
+  /// Mensagem única de microfone negado, com o caminho de autorização de cada
+  /// sistema (a tela de permissões do macOS não existe no Android).
+  static String get permissionDeniedMessage {
+    if (Platform.isMacOS) {
+      return 'Permissão de microfone negada. Autorize o soniox_transcriptor em '
+          'Ajustes do Sistema > Privacidade e Segurança > Microfone.';
+    }
+    return 'Permissão de microfone negada. Autorize o microfone para o app em '
+        'Configurações > Apps > soniox_transcriptor > Permissões.';
+  }
+
   Future<void> listInputDevices() async {
-    devices = await _record.listInputDevices();
+    try {
+      devices = await _record.listInputDevices();
+    } catch (error) {
+      // Nem toda plataforma expõe o enumerador; sem lista, o picker fica
+      // desabilitado e a captura usa o microfone padrão.
+      debugPrint('[recorder] listInputDevices falhou: $error');
+      devices = [];
+    }
     debugPrint('Found devices: ${devices.map((x) => x.label).join(',')}');
+  }
+
+  /// Pede a permissão de microfone antes da sessão. No Android é aqui que o
+  /// diálogo do sistema aparece; sem isso a primeira gravação morreria em erro
+  /// depois de abrir a conexão com a Soniox.
+  Future<bool> requestMicPermission() async {
+    final allowed = await _record.hasPermission();
+    debugPrint('[recorder] permissão de microfone: $allowed');
+    return allowed;
   }
 
   Future<void> start() async {
     final generation = ++_generation;
     final isAllowedToRecord = await _record.hasPermission();
     if (!isAllowedToRecord) {
-      _emitError(
-        'Permissão de microfone negada. Autorize o soniox_transcriptor em '
-        'Ajustes do Sistema > Privacidade e Segurança > Microfone.',
-      );
+      _emitError(permissionDeniedMessage);
       return;
     }
 

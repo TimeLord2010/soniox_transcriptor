@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Gravação de áudio (captura PCM para a Soniox) e socket wss para o
+         streaming. Sem INTERNET no manifesto principal o release não conecta:
+         a permissão que o template traz mora só no manifesto de debug. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="true"/>
     <application
         android:label="soniox_transcriptor"
         android:name="${applicationName}"
