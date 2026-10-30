@@ -185,14 +185,20 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   /// A aba da sandbox: captura comandada pelo botão (sempre visível, nas duas
   /// plataformas) e a caixa onde o texto ao vivo aparece.
+  ///
+  /// Sem rolagem na página: a caixa ocupa toda a altura que sobra da aba (a
+  /// barra inferior flutua sobre o conteúdo, daí o recuo de 58 px no rodapé).
   Widget _sandboxPage() {
     final hasApiKey = ref.watch(apiKeyProvider).isNotEmpty;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 100),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 58),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: kSectionSpacing,
-        children: [_recordControl(hasApiKey), _sandbox()],
+        children: [
+          _recordControl(hasApiKey),
+          const SizedBox(height: kSectionSpacing),
+          Expanded(child: _sandbox()),
+        ],
       ),
     );
   }
@@ -277,15 +283,21 @@ class _MainPageState extends ConsumerState<MainPage> {
           ),
         ),
         const SizedBox(height: kLabelSpacing),
-        CupertinoTextField(
-          key: const ValueKey('sandbox-field'),
-          controller: _sandboxController,
-          focusNode: _sandboxFocusNode,
-          minLines: 5,
-          maxLines: 5,
-          padding: const EdgeInsets.all(12),
-          decoration: fieldDecoration(),
-          style: const TextStyle(fontSize: 14),
+        Expanded(
+          child: CupertinoTextField(
+            key: const ValueKey('sandbox-field'),
+            controller: _sandboxController,
+            focusNode: _sandboxFocusNode,
+            // `expands` exige minLines/maxLines nulos: a caixa cresce com a
+            // aba e o texto rola dentro dela quando passa da altura.
+            expands: true,
+            minLines: null,
+            maxLines: null,
+            textAlignVertical: TextAlignVertical.top,
+            padding: const EdgeInsets.all(12),
+            decoration: fieldDecoration(),
+            style: const TextStyle(fontSize: 14),
+          ),
         ),
       ],
     );
