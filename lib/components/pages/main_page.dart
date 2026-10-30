@@ -50,8 +50,19 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<String>? _recorderErrorSubscription;
   bool _isProcessing = false;
 
-  /// Só as plataformas sem atalho global usam o botão de gravar.
+  /// Comando de captura pelo toque/clique, presente nas duas plataformas: no
+  /// Android é o único jeito de abrir uma sessão; no macOS convive com a tecla
+  /// global e entrega o texto na sandbox.
   bool _recording = false;
+
+  /// Índices das abas da barra inferior.
+  static const int _homeTab = 0;
+  static const int _sandboxTab = 1;
+
+  /// A sessão foi aberta pelo botão de gravar em vez da tecla global. Nesse
+  /// caso o destino é a sandbox em qualquer plataforma — inclusive no macOS,
+  /// onde a tecla global cola no app em foco (que seria o próprio app).
+  bool _sessionFromButton = false;
 
   // Session state. Lives in fields (not in the session-setup closures) so both
   // transports — the macOS hotkey and the on-screen button — drive the same
@@ -123,6 +134,11 @@ class _MainPageState extends ConsumerState<MainPage> {
                     label: 'Início',
                   ),
                   BottomNavigationBarItem(
+                    icon: Icon(CupertinoIcons.text_alignleft),
+                    activeIcon: Icon(CupertinoIcons.text_alignleft),
+                    label: 'Sandbox',
+                  ),
+                  BottomNavigationBarItem(
                     icon: Icon(CupertinoIcons.clock),
                     activeIcon: Icon(CupertinoIcons.clock_fill),
                     label: 'Histórico',
@@ -138,9 +154,9 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   Widget _content() {
     return switch (currentPage) {
-      0 => _homePage(),
-      1 => const TranscriptionsHistory(),
-      _ => const SizedBox.shrink(),
+      _homeTab => _homePage(),
+      _sandboxTab => _sandboxPage(),
+      _ => const TranscriptionsHistory(),
     };
   }
 
@@ -162,9 +178,21 @@ class _MainPageState extends ConsumerState<MainPage> {
           TermsPicker(),
           LanguagePicker(),
           ContextTextSetter(key: ValueKey('context-$profileId')),
-          if (!PlatformSupport.supportsGlobalHotkey) _recordControl(hasApiKey),
-          _sandbox(),
         ],
+      ),
+    );
+  }
+
+  /// A aba da sandbox: captura comandada pelo botão (sempre visível, nas duas
+  /// plataformas) e a caixa onde o texto ao vivo aparece.
+  Widget _sandboxPage() {
+    final hasApiKey = ref.watch(apiKeyProvider).isNotEmpty;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: kSectionSpacing,
+        children: [_recordControl(hasApiKey), _sandbox()],
       ),
     );
   }
@@ -198,11 +226,13 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
   }
 
-  /// Comando de captura onde não existe tecla global: no Android é o único jeito
-  /// de abrir uma sessão, por isso fica logo acima da sandbox.
+  /// Comando de captura por toque/clique. Fica logo acima da sandbox porque é
+  /// ali que o texto desta sessão vai aparecer (e no Android é o único jeito de
+  /// abrir uma sessão).
   Widget _recordControl(bool hasApiKey) {
     return RecordButton(
       isRecording: _recording,
+      pointerVerb: PlatformSupport.supportsGlobalHotkey ? 'Clique' : 'Toque',
       onPressed: () => _toggleRecording(hasApiKey),
     );
   }
@@ -320,6 +350,11 @@ class _MainPageState extends ConsumerState<MainPage> {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
+    // A sandbox agora é uma aba: sem trocar para ela o texto entraria num campo
+    // que o usuário não está vendo (falha silenciosa).
+    if (currentPage != _sandboxTab && mounted) {
+      setState(() => currentPage = _sandboxTab);
+    }
     _sandboxFocusNode.requestFocus();
   }
 
@@ -425,7 +460,12 @@ class _MainPageState extends ConsumerState<MainPage> {
   // MARK: Sessão (transporte independente de plataforma)
 
   /// Abre a captura. Chamado pela tecla global (macOS) ou pelo botão de gravar.
-  void _startSession() {
+  ///
+  /// [fromButton] decide o DESTINO do texto: sessão do botão entrega na sandbox
+  /// (em qualquer plataforma); sessão da tecla global, no macOS, cola no app em
+  /// foco e mostra o painel flutuante.
+  void _startSession({bool fromButton = false}) {
+    _sessionFromButton = fromButton;
     final current = soniox;
     if (current == null) {
       _reportError(
@@ -439,7 +479,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     if (mounted) setState(() {});
 
     _sandboxBaseText = _sandboxController.text;
-    HotkeyListener.showOverlay();
+    // Sessão do botão já mostra o andamento na própria sandbox: o painel
+    // flutuante é do caminho da tecla global, que roda longe do app.
+    if (!_sessionFromButton) HotkeyListener.showOverlay();
 
     _transcriptionSubscription?.cancel();
     _transcriptionSubscription = current.transcription.listen((transcription) {
@@ -463,8 +505,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     debugPrint('Connect command');
   }
 
-  /// Fecha a captura e entrega o texto: colado no app em foco (macOS) ou
-  /// deixado na sandbox + área de transferência (Android).
+  /// Fecha a captura e entrega o texto: colado no app em foco (tecla global no
+  /// macOS) ou deixado na sandbox + área de transferência (sessão do botão, em
+  /// qualquer plataforma).
   void _finishSession() {
     if (!_isProcessing) return;
 
@@ -473,9 +516,11 @@ class _MainPageState extends ConsumerState<MainPage> {
     final hadError = _sessionError != null;
 
     // Keep an error on screen long enough to read after the key is released.
-    HotkeyListener.hideOverlay(
-      delay: hadError ? const Duration(seconds: 4) : null,
-    );
+    if (!_sessionFromButton) {
+      HotkeyListener.hideOverlay(
+        delay: hadError ? const Duration(seconds: 4) : null,
+      );
+    }
 
     if (fullText.isNotEmpty) {
       GetIt.I.get<TranscriptionRepository>().insert(
@@ -486,21 +531,22 @@ class _MainPageState extends ConsumerState<MainPage> {
         ),
       );
       ref.invalidate(historyProvider);
-      if (PlatformSupport.canPasteIntoOtherApp) {
-        HotkeyListener.pasteText(fullText);
-      } else {
+      if (_sessionFromButton) {
         _deliverToSandbox(fullText);
+      } else {
+        HotkeyListener.pasteText(fullText);
       }
     }
     soniox?.disconnect();
     recorder.stop();
     _isProcessing = false;
     _recording = false;
+    _sessionFromButton = false;
     if (mounted) setState(() {});
     _updateSonioxInstance();
   }
 
-  /// Liga/desliga a captura pelo botão (plataformas sem tecla global).
+  /// Liga/desliga a captura pelo botão (existe nas duas plataformas).
   Future<void> _toggleRecording(bool hasApiKey) async {
     if (!hasApiKey) {
       showToast(context, 'Salve a chave Soniox do perfil para gravar.');
@@ -520,23 +566,24 @@ class _MainPageState extends ConsumerState<MainPage> {
       return;
     }
     if (!mounted) return;
-    _startSession();
+    _startSession(fromButton: true);
   }
 
-  /// Andamento da transcrição: painel flutuante no macOS; sem painel, o texto
-  /// vai aparecendo na própria sandbox.
+  /// Andamento da transcrição: painel flutuante na sessão da tecla global;
+  /// sessão do botão (e plataformas sem painel) escreve na própria sandbox.
   void _showLiveText() {
     final finalText = _buffer.toString();
-    if (PlatformSupport.supportsGlobalHotkey) {
+    if (!_sessionFromButton) {
       HotkeyListener.updateTranscription(finalText, _nonFinal);
       return;
     }
     _setSandboxText('$_sandboxBaseText$finalText$_nonFinal');
   }
 
-  /// Erro visível: painel flutuante no macOS, toast dentro do app nas demais.
+  /// Erro visível: painel flutuante na sessão da tecla global, toast dentro do
+  /// app quando é o usuário que está olhando a tela.
   void _reportError(String message) {
-    if (PlatformSupport.supportsGlobalHotkey) {
+    if (!_sessionFromButton && PlatformSupport.supportsGlobalHotkey) {
       HotkeyListener.showError(message);
       return;
     }
@@ -544,16 +591,18 @@ class _MainPageState extends ConsumerState<MainPage> {
     showToast(context, message);
   }
 
-  /// Erro no meio da sessão. Onde não existe tecla global também não existe
+  /// Erro no meio da sessão. Sem tecla global (ou na sessão do botão) não há
   /// "soltar a tecla" para encerrar a captura: fecha a sessão aqui mesmo, senão
   /// o botão ficaria preso em "Ouvindo…" sem nada chegando.
   void _failSession(String message) {
     _reportError(message);
-    if (!PlatformSupport.supportsGlobalHotkey) _finishSession();
+    if (_sessionFromButton || !PlatformSupport.supportsGlobalHotkey) {
+      _finishSession();
+    }
   }
 
-  /// Sem colagem sintética, o resultado final fica na sandbox (já com o texto
-  /// ao vivo) e vai para a área de transferência, pronta para outro app.
+  /// Resultado final da sessão do botão: fica na sandbox e vai para a área de
+  /// transferência, pronta para outro app.
   void _deliverToSandbox(String text) {
     _setSandboxText('$_sandboxBaseText$text');
     Clipboard.setData(ClipboardData(text: text));

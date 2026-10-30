@@ -31,6 +31,7 @@ void main() {
       ),
     );
     await pumpCupertinoWidget(tester, const MainPage());
+    await openSandboxTab(tester);
   }
 
   CupertinoButton action(WidgetTester tester, String key) {
