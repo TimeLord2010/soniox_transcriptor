@@ -207,13 +207,48 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
   }
 
-  Column _sandbox() {
+  Widget _sandbox() {
+    // O header com as ações acompanha o conteúdo: os botões ficam desabilitados
+    // enquanto a sandbox está vazia, e para isso a UI precisa saber do texto.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Sandbox', style: sectionLabelStyle),
+        SizedBox(
+          height: 32,
+          child: Row(
+            children: [
+              const Text('Sandbox', style: sectionLabelStyle),
+              const Spacer(),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _sandboxController,
+                builder: (context, value, _) {
+                  final isEmpty = value.text.isEmpty;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _sandboxAction(
+                        key: const ValueKey('sandbox-copy'),
+                        label: 'Copiar',
+                        icon: CupertinoIcons.doc_on_doc,
+                        onPressed: isEmpty ? null : _copySandbox,
+                      ),
+                      const SizedBox(width: 4),
+                      _sandboxAction(
+                        key: const ValueKey('sandbox-clear'),
+                        label: 'Limpar',
+                        icon: CupertinoIcons.trash,
+                        onPressed: isEmpty ? null : _clearSandbox,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: kLabelSpacing),
         CupertinoTextField(
+          key: const ValueKey('sandbox-field'),
           controller: _sandboxController,
           focusNode: _sandboxFocusNode,
           minLines: 5,
@@ -224,6 +259,47 @@ class _MainPageState extends ConsumerState<MainPage> {
         ),
       ],
     );
+  }
+
+  /// Ação do header da sandbox. `onPressed: null` desabilita (CupertinoButton
+  /// cuida da cor apagada) — a ação só existe quando há o que copiar/apagar.
+  Widget _sandboxAction({
+    required Key key,
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return CupertinoButton(
+      key: key,
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      pressedOpacity: 0.5,
+      onPressed: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _copySandbox() {
+    final text = _sandboxController.text;
+    if (text.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    showToast(context, 'Sandbox copiada para a área de transferência.');
+  }
+
+  void _clearSandbox() {
+    _setSandboxText('');
+    // Limpar é para recomeçar a digitar: devolve o foco ao campo.
+    _sandboxFocusNode.requestFocus();
   }
 
   /// Inserts [text] into the sandbox field at the current cursor position,
