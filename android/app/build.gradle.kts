@@ -36,6 +36,21 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Alvo Android: aparelhos recentes, arm64 apenas. O `--target-platform
+    // android-arm64` já limita o motor, mas os AARs dos plugins deixam stubs de
+    // 32 bits (libdartjni.so, libdatastore_shared_counter.so) e, com eles no
+    // APK, um aparelho antigo ainda instala e depois morre ao não achar
+    // libflutter.so. Excluir as pastas tira a claim de ABI de 32 bits.
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/armeabi-v7a/**",
+                "lib/x86/**",
+                "lib/x86_64/**",
+            )
+        }
+    }
 }
 
 kotlin {

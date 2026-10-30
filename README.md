@@ -27,6 +27,17 @@ espalhe `Platform.isMacOS` pelo código.
 ## Build
 
 ```bash
+# macOS
 flutter build macos --release   # build/macos/Build/Products/Release/soniox_transcriptor.app
-flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
+
+# Android — SEMPRE arm64 (dispositivos recentes)
+flutter build apk --release --target-platform android-arm64 \
+  --obfuscate --split-debug-info=build/symbols
+# build/app/outputs/flutter-apk/app-release.apk
 ```
+
+O APK Android é sempre só `arm64-v8a`: o `android/app/build.gradle.kts` exclui as
+pastas de 32 bits e de emulador, então o artefato não se declara instalável em
+aparelho antigo (que instalaria e morreria sem `libflutter.so`). Todas as libs
+nativas estão alinhadas para páginas de 16 KB, exigência das versões recentes do
+Android.
