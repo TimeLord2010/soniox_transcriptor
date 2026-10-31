@@ -4,30 +4,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soniox_transcriptor/repositories/history_store.dart';
-import 'package:soniox_transcriptor/repositories/history_store_sqlite.dart';
+import 'package:soniox_transcriptor/repositories/history_store_prefs.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 /// Prepara o ambiente que a UI espera do app real: prefs em memória
-/// (`setMockInitialValues` é o store em memória do próprio plugin) e um banco
-/// sqlite em memória. Devolve o [SharedPreferences] para os testes conferirem
-/// o que foi persistido.
+/// (`setMockInitialValues` é o store em memória do próprio plugin) e o
+/// histórico no store de prefs. O store em SQLite fica de fora de propósito —
+/// ele puxa `dart:ffi`, e é isso que permite rodar os testes de widget também
+/// em Chrome (`flutter test --platform chrome`), como o app roda no browser.
+/// Devolve o [SharedPreferences] para os testes conferirem o que foi
+/// persistido.
 Future<SharedPreferences> setUpAppEnvironment() async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
 
-  final db = sqlite3.openInMemory();
-  final store = SqliteHistoryStore(db);
+  final store = PrefsHistoryStore();
 
   await GetIt.I.reset();
   GetIt.I.registerSingleton<SharedPreferences>(prefs);
+  // Depois do GetIt: o load lê o SharedPreferences registrado.
+  await store.load();
   GetIt.I.registerSingleton<HistoryStore>(store);
   GetIt.I.registerSingleton<TranscriptionRepository>(
     TranscriptionRepository(store: store),
   );
 
   addTearDown(() async {
-    db.close();
     await GetIt.I.reset();
   });
 

@@ -370,9 +370,7 @@ class _MainPageState extends ConsumerState<MainPage> {
         Expanded(
           child: RecordButton(
             isRecording: _recording,
-            pointerVerb: PlatformSupport.supportsGlobalHotkey
-                ? 'Clique'
-                : 'Toque',
+            pointerVerb: PlatformSupport.usesClickVerb ? 'Clique' : 'Toque',
             onPressed: () => _toggleRecording(hasApiKey),
           ),
         ),
