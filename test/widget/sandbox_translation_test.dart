@@ -8,9 +8,9 @@ import 'package:soniox_transcriptor/repositories/translation_repository.dart';
 
 import '../helpers/widget_harness.dart';
 
-/// Tradução ao vivo é opção de sessão: liga pela caixa de marcar, exige língua
-/// alvo e aparece nos dois lugares (Início e Sandbox) — sempre a mesma
-/// preferência do perfil.
+/// Tradução ao vivo é opção de sessão: liga pela caixa de marcar (nos ajustes
+/// da captura, na Sandbox, e na aba Início), exige língua alvo e é sempre a
+/// mesma preferência do perfil.
 void main() {
   tearDown(() => PlatformSupport.debugForceSupportsGlobalHotkey(null));
 
@@ -18,6 +18,11 @@ void main() {
     PlatformSupport.debugForceSupportsGlobalHotkey(true);
     await setUpAppEnvironment();
     await pumpCupertinoWidget(tester, const MainPage());
+  }
+
+  Future<void> openSettings(WidgetTester tester) async {
+    await tester.tap(find.byKey(const ValueKey('sandbox-settings')));
+    await tester.pumpAndSettle();
   }
 
   IconData toggleIcon(WidgetTester tester) {
@@ -36,6 +41,7 @@ void main() {
   ) async {
     await openPage(tester);
     await openSandboxTab(tester);
+    await openSettings(tester);
 
     expect(find.text('Traduzir'), findsOneWidget);
     expect(toggleIcon(tester), CupertinoIcons.circle);
@@ -51,6 +57,7 @@ void main() {
   ) async {
     await openPage(tester);
     await openSandboxTab(tester);
+    await openSettings(tester);
 
     await tester.tap(find.text('Traduzir'));
     await tester.pump();
@@ -68,11 +75,12 @@ void main() {
     expect(find.text('Tradução — Inglês'), findsOneWidget);
   });
 
-  testWidgets('o seletor de alvo troca a língua e fecha o popup', (
+  testWidgets('o seletor de alvo troca a língua sem fechar os ajustes', (
     tester,
   ) async {
     await openPage(tester);
     await openSandboxTab(tester);
+    await openSettings(tester);
     await tester.tap(find.text('Traduzir'));
     await tester.pump();
 
@@ -83,7 +91,9 @@ void main() {
     await tester.tap(find.widgetWithText(MenuOptionRow, 'Português'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pronto'), findsNothing);
+    // O menu de alvo fecha; os ajustes continuam abertos para conferir o resto.
+    expect(find.byType(MenuOptionRow), findsNothing);
+    expect(find.text('Ajustes da captura'), findsOneWidget);
     expect(find.text('Tradução — Português'), findsOneWidget);
     expect(TranslationRepository('default').getTarget(), Language.pt);
   });
@@ -93,6 +103,7 @@ void main() {
   ) async {
     await openPage(tester);
     await openSandboxTab(tester);
+    await openSettings(tester);
     await tester.tap(find.text('Traduzir'));
     await tester.pump();
 
@@ -120,11 +131,13 @@ void main() {
 
     await openSandboxTab(tester);
 
-    expect(toggleIcon(tester), CupertinoIcons.check_mark_circled_solid);
+    // A caixa da tradução já está na aba; o estado do controle está nos ajustes.
     expect(
       find.byKey(const ValueKey('sandbox-translation-field')),
       findsOneWidget,
     );
+    await openSettings(tester);
+    expect(toggleIcon(tester), CupertinoIcons.check_mark_circled_solid);
   });
 
   testWidgets('tradução salva no perfil nasce ligada', (tester) async {
@@ -134,7 +147,8 @@ void main() {
     await pumpCupertinoWidget(tester, const MainPage());
     await openSandboxTab(tester);
 
-    expect(toggleIcon(tester), CupertinoIcons.check_mark_circled_solid);
     expect(find.text('Tradução — Inglês'), findsOneWidget);
+    await openSettings(tester);
+    expect(toggleIcon(tester), CupertinoIcons.check_mark_circled_solid);
   });
 }

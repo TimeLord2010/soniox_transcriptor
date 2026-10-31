@@ -5,12 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
-import 'package:soniox_transcriptor/components/checkbox_row.dart';
 import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
 import 'package:soniox_transcriptor/components/profile_selector.dart';
 import 'package:soniox_transcriptor/components/record_button.dart';
+import 'package:soniox_transcriptor/components/sandbox_settings.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
@@ -216,30 +216,19 @@ class _MainPageState extends ConsumerState<MainPage> {
   }
 
   /// A aba da sandbox: captura comandada pelo botão (sempre visível, nas duas
-  /// plataformas), a opção de diarização e a caixa onde o texto ao vivo aparece.
+  /// plataformas), o acesso aos ajustes da captura e a caixa onde o texto ao
+  /// vivo aparece.
   ///
   /// Sem rolagem na página: a caixa ocupa toda a altura que sobra da aba (a
   /// barra inferior flutua sobre o conteúdo, daí o recuo de 58 px no rodapé).
   Widget _sandboxPage() {
     final hasApiKey = ref.watch(apiKeyProvider).isNotEmpty;
-    final diarization = ref.watch(diarizationProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 58),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _recordControl(hasApiKey),
-          const SizedBox(height: kSectionSpacing),
-          CheckboxRow(
-            key: const ValueKey('sandbox-diarization'),
-            label: 'Diarização',
-            hint: 'separa quem falou no texto',
-            value: diarization,
-            onChanged: (enabled) =>
-                ref.read(diarizationProvider.notifier).setDiarization(enabled),
-          ),
-          const SizedBox(height: kLabelSpacing),
-          TranslationSettings(key: const ValueKey('sandbox-translation')),
           const SizedBox(height: kSectionSpacing),
           Expanded(child: _textAreas()),
         ],
@@ -339,14 +328,47 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
   }
 
-  /// Comando de captura por toque/clique. Fica logo acima da sandbox porque é
-  /// ali que o texto desta sessão vai aparecer (e no Android é o único jeito de
-  /// abrir uma sessão).
+  /// Comando de captura por toque/clique, com o acesso aos ajustes da captura
+  /// no fim da mesma linha. Fica logo acima da sandbox porque é ali que o texto
+  /// desta sessão vai aparecer (e no Android é o único jeito de abrir uma
+  /// sessão).
   Widget _recordControl(bool hasApiKey) {
-    return RecordButton(
-      isRecording: _recording,
-      pointerVerb: PlatformSupport.supportsGlobalHotkey ? 'Clique' : 'Toque',
-      onPressed: () => _toggleRecording(hasApiKey),
+    return Row(
+      children: [
+        Expanded(
+          child: RecordButton(
+            isRecording: _recording,
+            pointerVerb: PlatformSupport.supportsGlobalHotkey
+                ? 'Clique'
+                : 'Toque',
+            onPressed: () => _toggleRecording(hasApiKey),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _captureSettingsButton(),
+      ],
+    );
+  }
+
+  /// Ajustes da captura (diarização e tradução) num popup: na aba, cada opção
+  /// virava uma linha e as duas empurravam a caixa de texto para baixo.
+  Widget _captureSettingsButton() {
+    return CupertinoButton(
+      key: const ValueKey('sandbox-settings'),
+      padding: EdgeInsets.zero,
+      pressedOpacity: 0.6,
+      onPressed: () => showSandboxSettings(context),
+      child: Container(
+        height: 52,
+        width: 52,
+        alignment: Alignment.center,
+        decoration: fieldDecoration(radius: 12),
+        child: const Icon(
+          CupertinoIcons.settings,
+          size: 20,
+          color: CupertinoColors.secondaryLabel,
+        ),
+      ),
     );
   }
 

@@ -36,9 +36,18 @@ class TranslationSettings extends ConsumerWidget {
             key: const ValueKey('translation-target'),
             onPressed: () =>
                 showCupertinoMenuPopup(context, const _TranslationTargetMenu()),
-            child: Text(
-              'Língua alvo: ${target.label}',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            // Elástico: dentro do popup de ajustes a largura é curta, e um
+            // rótulo rígido estouraria a linha em vez de encolher.
+            child: Flexible(
+              child: Text(
+                'Língua alvo: ${target.label}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ),
         ],
