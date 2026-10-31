@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:record/record.dart';
+import 'package:soniox_transcriptor/modules/platform_support.dart';
 
 /// Microphone capture for the transcription session.
 ///
@@ -45,16 +45,11 @@ class RecorderRepository {
   List<InputDevice> devices = [];
   InputDevice? selectedDevice;
 
-  /// Mensagem única de microfone negado, com o caminho de autorização de cada
-  /// sistema (a tela de permissões do macOS não existe no Android).
-  static String get permissionDeniedMessage {
-    if (Platform.isMacOS) {
-      return 'Permissão de microfone negada. Autorize o soniox_transcriptor em '
-          'Ajustes do Sistema > Privacidade e Segurança > Microfone.';
-    }
-    return 'Permissão de microfone negada. Autorize o microfone para o app em '
-        'Configurações > Apps > soniox_transcriptor > Permissões.';
-  }
+  /// Mensagem única de microfone negado. O texto por sistema mora no
+  /// [PlatformSupport] — aqui era uma cópia da decisão de plataforma, e ela
+  /// quebrava no web.
+  static String get permissionDeniedMessage =>
+      PlatformSupport.micPermissionDeniedMessage;
 
   Future<void> listInputDevices() async {
     try {
