@@ -16,7 +16,7 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
-  vit_soniox: ^1.0.1
+  vit_soniox: ^1.0.2
   record: ^7.2.0
   web_socket_channel: ^3.0.3
   vit_dart_extensions: ^4.2.0
@@ -25,6 +25,11 @@ dependencies:
   path: ^1.8.3
 
 dependency_overrides:
+  # 1.0.2 (parse de token traduzido, sem `confidence`/timestamps) ainda não está
+  # no pub.dev: o app usa o clone local até o `dart pub publish` do vit_soniox.
+  # Depois disso, apagar este override e voltar ao pacote do registry.
+  vit_soniox:
+    path: /Users/vini/projects/vit/vit_soniox
   # Hardware test of upstream record (branch fix/macos-keep-selected-input).
   record:
     path: /Users/vini/projects/vit/record/record
