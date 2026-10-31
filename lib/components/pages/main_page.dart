@@ -45,7 +45,12 @@ class _MainPageState extends ConsumerState<MainPage> {
     onKeyUp: () {},
     onInsertText: _insertIntoSandbox,
   );
-  final recorder = RecorderRepository();
+
+  /// Captura de áudio. Sai do GetIt quando o teste registra um gravador falso;
+  /// no app normal é o do microfone.
+  late final recorder = GetIt.I.isRegistered<RecorderRepository>()
+      ? GetIt.I.get<RecorderRepository>()
+      : RecorderRepository();
   final _sandboxController = TextEditingController();
   final _sandboxFocusNode = FocusNode();
 
@@ -99,6 +104,10 @@ class _MainPageState extends ConsumerState<MainPage> {
   final _translationBuffer = StringBuffer();
   String _nonFinalTranslation = '';
 
+  /// Controle de log/aviso do caminho da tradução (uma vez por sessão).
+  bool _translationLogged = false;
+  bool _translationErrorReported = false;
+
   int currentPage = 0;
 
   @override
@@ -136,10 +145,16 @@ class _MainPageState extends ConsumerState<MainPage> {
     ref.listen(activeProfileIdProvider, (_, _) => _scheduleSessionRebuild());
     // A diarização é parâmetro de sessão: mudar a caixa de marcar reconstrói a
     // conexão com o Soniox (só vale na próxima captura, como a chave/termos).
-    ref.listen(diarizationProvider, (_, _) => _scheduleSessionRebuild());
+    ref.listen(diarizationProvider, (_, _) {
+      _scheduleSessionRebuild();
+      _notifyPendingSetting();
+    });
     // Idem para a tradução: o alvo entra no config do WebSocket e não pode
     // trocar no meio de uma captura.
-    ref.listen(translationProvider, (_, _) => _scheduleSessionRebuild());
+    ref.listen(translationProvider, (_, _) {
+      _scheduleSessionRebuild();
+      _notifyPendingSetting();
+    });
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -522,6 +537,14 @@ class _MainPageState extends ConsumerState<MainPage> {
     });
   }
 
+  /// Opção de sessão mexida com uma captura em andamento: a conexão atual não
+  /// muda, então a pessoa precisa saber que só vale na próxima — senão a
+  /// tradução (por exemplo) fica sem texto e parece defeito.
+  void _notifyPendingSetting() {
+    if (!_isProcessing || !mounted) return;
+    showToast(context, 'Vale a partir da próxima captura.');
+  }
+
   void _updateSonioxInstance() {
     // A recording is in flight: key-up rebuilds the session from the current
     // providers right after, so don't tear it down now.
@@ -556,7 +579,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
     var current = soniox = SonioxWebsocket(
       sessionConfig,
-      websocket: SonioxWebsocketImpl(),
+      websocket: createWebsocket(),
     );
 
     _connectionSubscription = current.connectionStream.listen((connect) async {
@@ -605,6 +628,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     _translationTarget = null;
     _translationBuffer.clear();
     _nonFinalTranslation = '';
+    _translationLogged = false;
+    _translationErrorReported = false;
   }
 
   // MARK: Sessão (transporte independente de plataforma)
@@ -648,6 +673,11 @@ class _MainPageState extends ConsumerState<MainPage> {
     _transcriptionSubscription = _translationTarget == null
         ? current.transcription.listen(_onTranscription)
         : current.rawMessages.listen(_onTranslationMessage);
+    debugPrint(
+      '[session] tradução: ${_translationTarget?.name ?? 'desligada'} | '
+      'diarização: ${_diarized != null} | eventos: '
+      '${_translationTarget == null ? 'transcription' : 'rawMessages'}',
+    );
 
     _errorSubscription?.cancel();
     _errorSubscription = current.errors.listen((sonioxError) {
@@ -686,7 +716,15 @@ class _MainPageState extends ConsumerState<MainPage> {
   /// Andamento de uma sessão com tradução: o evento já vem separado em
   /// transcrição e tradução, então os dois textos crescem no lugar certo.
   void _onTranslationMessage(String raw) {
-    final event = TranslatedEvent.fromRawMessage(raw);
+    final TranslatedEvent? event;
+    try {
+      event = TranslatedEvent.fromRawMessage(raw);
+    } catch (error, stack) {
+      // Sem este catch, uma exceção aqui cancelaria a assinatura e a tradução
+      // ficaria vazia para sempre, sem sinal nenhum na tela.
+      _reportTranslationFailure('$error', stack);
+      return;
+    }
     if (event == null) return;
 
     final diarized = _diarized;
@@ -703,7 +741,21 @@ class _MainPageState extends ConsumerState<MainPage> {
     _nonFinal = event.nonFinalOriginals.map((token) => token.text).join();
     _translationBuffer.write(event.finalTranslation);
     _nonFinalTranslation = event.nonFinalTranslation;
+    if (!_translationLogged && _translationBuffer.isNotEmpty) {
+      _translationLogged = true;
+      debugPrint('[session] primeira tradução recebida: $_translationBuffer');
+    }
     _showLiveText();
+  }
+
+  /// Falha do caminho da tradução: aparece uma vez por sessão (toast) e vai para
+  /// o log com a stack — o resto da captura continua.
+  void _reportTranslationFailure(String error, StackTrace stack) {
+    debugPrint('[session] falha ao ler evento cru: $error\n$stack');
+    if (_translationErrorReported) return;
+    _translationErrorReported = true;
+    if (!mounted) return;
+    showToast(context, 'Falha ao processar a tradução: $error');
   }
 
   /// Fecha a captura e entrega o texto: colado no app em foco (tecla global no

@@ -20,7 +20,9 @@ class RecorderRepository {
   /// Full capture starts (the native plugin already retries internally).
   static const maxStartAttempts = 2;
 
-  final _record = AudioRecorder();
+  // Criado sob demanda: o construtor do plugin já fala com o canal nativo, e
+  // um teste que troca o gravador não deve tocar no plugin.
+  late final AudioRecorder _record = AudioRecorder();
 
   StreamController<Uint8List> _recordStreamController =
       StreamController.broadcast();
