@@ -8,6 +8,7 @@ import 'package:soniox_transcriptor/repositories/context_repository.dart';
 import 'package:soniox_transcriptor/repositories/languages_repository.dart';
 import 'package:soniox_transcriptor/repositories/profile_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
+import 'package:soniox_transcriptor/repositories/translation_repository.dart';
 
 import '../../helpers/prefs.dart';
 
@@ -142,6 +143,58 @@ void main() {
       await selectProfile('trabalho');
 
       expect(container.read(termsProvider), ['trabalho']);
+    });
+  });
+
+  group('translationProvider', () {
+    test('começa desligada, sem língua alvo', () {
+      expect(container.read(translationProvider), isNull);
+    });
+
+    test('ligar escolhe como alvo uma língua fora das de entrada', () async {
+      // Hints padrão = {pt}: traduzir para português não faria sentido.
+      expect(container.read(languagesProvider), {Language.pt});
+
+      await container.read(translationProvider.notifier).setEnabled(true);
+
+      expect(container.read(translationProvider), Language.en);
+      expect(TranslationRepository(Profile.defaultId).getTarget(), Language.en);
+    });
+
+    test('ligar com todas as línguas selecionadas cai no inglês', () async {
+      await container
+          .read(languagesProvider.notifier)
+          .toggleLanguage(Language.en);
+
+      await container.read(translationProvider.notifier).setEnabled(true);
+
+      expect(container.read(translationProvider), Language.en);
+    });
+
+    test('desligar apaga o alvo salvo', () async {
+      await container.read(translationProvider.notifier).setEnabled(true);
+
+      await container.read(translationProvider.notifier).setEnabled(false);
+
+      expect(container.read(translationProvider), isNull);
+      expect(TranslationRepository(Profile.defaultId).getTarget(), isNull);
+    });
+
+    test('setTarget troca a língua e persiste', () async {
+      await container.read(translationProvider.notifier).setEnabled(true);
+
+      await container.read(translationProvider.notifier).setTarget(Language.pt);
+
+      expect(container.read(translationProvider), Language.pt);
+      expect(TranslationRepository(Profile.defaultId).getTarget(), Language.pt);
+    });
+
+    test('o alvo acompanha a troca de perfil', () async {
+      await TranslationRepository('trabalho').setTarget(Language.en);
+
+      await selectProfile('trabalho');
+
+      expect(container.read(translationProvider), Language.en);
     });
   });
 }
