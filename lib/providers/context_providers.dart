@@ -5,6 +5,7 @@ import 'package:soniox_transcriptor/repositories/context_repository.dart';
 import 'package:soniox_transcriptor/repositories/diarization_repository.dart';
 import 'package:soniox_transcriptor/repositories/languages_repository.dart';
 import 'package:soniox_transcriptor/repositories/terms_repository.dart';
+import 'package:soniox_transcriptor/repositories/translation_repository.dart';
 
 final contextProvider = StateNotifierProvider<ContextNotifier, String>(
   (ref) => ContextNotifier(ref.watch(activeProfileIdProvider)),
@@ -22,6 +23,13 @@ final termsProvider = StateNotifierProvider<TermsNotifier, List<String>>(
 final diarizationProvider = StateNotifierProvider<DiarizationNotifier, bool>(
   (ref) => DiarizationNotifier(ref.watch(activeProfileIdProvider)),
 );
+
+/// Língua alvo da tradução ao vivo. `null` = tradução desligada: sem alvo não
+/// há o que pedir ao Soniox.
+final translationProvider =
+    StateNotifierProvider<TranslationNotifier, Language?>(
+      (ref) => TranslationNotifier(ref.watch(activeProfileIdProvider)),
+    );
 
 class ContextNotifier extends StateNotifier<String> {
   final ContextRepository _repo;
@@ -85,5 +93,47 @@ class DiarizationNotifier extends StateNotifier<bool> {
   Future<void> setDiarization(bool enabled) async {
     await _repo.setSpeakerDiarization(enabled);
     state = enabled;
+  }
+}
+
+/// Liga/desliga a tradução e guarda a língua alvo.
+///
+/// Ligar sem alvo salvo escolhe um alvo útil de cara (uma língua que NÃO está
+/// entre as de entrada — traduzir para a mesma língua que se fala não serve
+/// para nada), para a sessão já nascer válida em vez de esperar um segundo
+/// clique.
+class TranslationNotifier extends StateNotifier<Language?> {
+  TranslationNotifier(this.profileId)
+    : _repo = TranslationRepository(profileId),
+      super(TranslationRepository(profileId).getTarget());
+
+  final String profileId;
+  final TranslationRepository _repo;
+
+  Future<void> setEnabled(bool enabled) async {
+    if (!enabled) {
+      await _repo.clear();
+      state = null;
+      return;
+    }
+    final target = state ?? _defaultTarget();
+    await _repo.setTarget(target);
+    state = target;
+  }
+
+  Future<void> setTarget(Language target) async {
+    await _repo.setTarget(target);
+    state = target;
+  }
+
+  /// Primeira língua fora das de entrada; se todas estiverem selecionadas (ou
+  /// nenhuma), inglês é o alvo padrão.
+  Language _defaultTarget() {
+    final spoken = LanguagesRepository(profileId).getLanguages();
+    if (spoken.isEmpty) return Language.en;
+    for (final language in Language.values) {
+      if (!spoken.contains(language)) return language;
+    }
+    return Language.en;
   }
 }

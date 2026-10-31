@@ -14,9 +14,13 @@ import 'package:soniox_transcriptor/components/record_button.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
+import 'package:soniox_transcriptor/components/translation_settings.dart';
+import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
+import 'package:soniox_transcriptor/modules/session_config.dart';
+import 'package:soniox_transcriptor/modules/translated_event.dart';
 import 'package:soniox_transcriptor/protocols/show_toast.dart';
 import 'package:soniox_transcriptor/providers/api_key_provider.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
@@ -44,6 +48,10 @@ class _MainPageState extends ConsumerState<MainPage> {
   final recorder = RecorderRepository();
   final _sandboxController = TextEditingController();
   final _sandboxFocusNode = FocusNode();
+
+  /// Texto traduzido da sessão atual. Vive fora da sandbox de propósito: os
+  /// dois textos têm destinos diferentes (a sandbox é o que foi falado).
+  final _translationController = TextEditingController();
   SonioxWebsocket? soniox;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<int>>? _recordStreamSubscription;
@@ -81,6 +89,16 @@ class _MainPageState extends ConsumerState<MainPage> {
   /// rótulo do falante. Criado por sessão para zerar o falante corrente.
   DiarizedTextBuilder? _diarized;
 
+  /// Língua alvo da tradução congelada no início da sessão (`null` = tradução
+  /// desligada). Como a diarização, é parâmetro de conexão: mudar a opção no
+  /// meio da captura só vale na próxima.
+  Language? _translationTarget;
+
+  /// Tradução acumulada da sessão; o texto ao vivo é este buffer mais a prévia
+  /// não final.
+  final _translationBuffer = StringBuffer();
+  String _nonFinalTranslation = '';
+
   int currentPage = 0;
 
   @override
@@ -103,6 +121,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     // lifetime; the OS reclaims it on exit.
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
+    _translationController.dispose();
     _recorderErrorSubscription?.cancel();
     recorder.dispose();
     super.dispose();
@@ -118,6 +137,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     // A diarização é parâmetro de sessão: mudar a caixa de marcar reconstrói a
     // conexão com o Soniox (só vale na próxima captura, como a chave/termos).
     ref.listen(diarizationProvider, (_, _) => _scheduleSessionRebuild());
+    // Idem para a tradução: o alvo entra no config do WebSocket e não pode
+    // trocar no meio de uma captura.
+    ref.listen(translationProvider, (_, _) => _scheduleSessionRebuild());
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -186,6 +208,7 @@ class _MainPageState extends ConsumerState<MainPage> {
           DevicePicker(key: ValueKey('device-$profileId'), recorder: recorder),
           TermsPicker(),
           LanguagePicker(),
+          TranslationSettings(key: ValueKey('home-translation')),
           ContextTextSetter(key: ValueKey('context-$profileId')),
         ],
       ),
@@ -215,10 +238,75 @@ class _MainPageState extends ConsumerState<MainPage> {
             onChanged: (enabled) =>
                 ref.read(diarizationProvider.notifier).setDiarization(enabled),
           ),
+          const SizedBox(height: kLabelSpacing),
+          TranslationSettings(key: const ValueKey('sandbox-translation')),
           const SizedBox(height: kSectionSpacing),
-          Expanded(child: _sandbox()),
+          Expanded(child: _textAreas()),
         ],
       ),
+    );
+  }
+
+  /// As caixas de texto da aba: a transcrição e, com a tradução ligada, a
+  /// tradução embaixo dela. A tradução divide a altura com a transcrição em vez
+  /// de virar uma terceira aba — as duas são lidas juntas.
+  Widget _textAreas() {
+    final target = ref.watch(translationProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: target == null ? 1 : 3, child: _sandbox()),
+        if (target != null) ...[
+          const SizedBox(height: kSectionSpacing),
+          Expanded(flex: 2, child: _translation(target)),
+        ],
+      ],
+    );
+  }
+
+  /// Caixa da tradução: só leitura (quem escreve é o Soniox), com a língua alvo
+  /// no cabeçalho e a mesma ação de copiar da sandbox.
+  Widget _translation(Language target) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 32,
+          child: Row(
+            children: [
+              Text('Tradução — ${target.label}', style: sectionLabelStyle),
+              const Spacer(),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _translationController,
+                builder: (context, value, _) {
+                  return _sandboxAction(
+                    key: const ValueKey('sandbox-translation-copy'),
+                    label: 'Copiar',
+                    icon: CupertinoIcons.doc_on_doc,
+                    onPressed: value.text.isEmpty ? null : _copyTranslation,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: kLabelSpacing),
+        Expanded(
+          child: CupertinoTextField(
+            key: const ValueKey('sandbox-translation-field'),
+            controller: _translationController,
+            readOnly: true,
+            expands: true,
+            minLines: null,
+            maxLines: null,
+            textAlignVertical: TextAlignVertical.top,
+            placeholder: 'A tradução aparece aqui durante a captura.',
+            padding: const EdgeInsets.all(12),
+            decoration: fieldDecoration(),
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
+      ],
     );
   }
 
@@ -359,8 +447,18 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   void _clearSandbox() {
     _setSandboxText('');
+    // A tradução é da mesma captura: limpar a sandbox sem limpar ela deixaria
+    // um texto órfão na tela.
+    _setTranslationText('');
     // Limpar é para recomeçar a digitar: devolve o foco ao campo.
     _sandboxFocusNode.requestFocus();
+  }
+
+  void _copyTranslation() {
+    final text = _translationController.text;
+    if (text.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    showToast(context, 'Tradução copiada para a área de transferência.');
   }
 
   /// Inserts [text] into the sandbox field at the current cursor position,
@@ -424,25 +522,18 @@ class _MainPageState extends ConsumerState<MainPage> {
       return;
     }
 
-    var terms = ref.read(termsProvider);
-    var languageValues = ref.read(languagesProvider);
-    var languages = languageValues.map((x) => x.name).toList();
-    var cText = ref.read(contextProvider);
-    var diarization = ref.read(diarizationProvider);
-
     // Updating state
     debugPrint('Creating soniox websocket with api key');
-    var sonioxSessionConfig = SonioxSessionConfig(
+    final sessionConfig = buildSessionConfig(
       apiKey: apiKey,
-      model: 'stt-rt-v5',
-      audio: AudioConfig.pcms16le(),
-      languageHints: languages,
-      languageStrict: languages.isNotEmpty,
-      speakerDiarization: diarization,
-      context: SessionContext(text: cText, terms: terms),
+      languages: ref.read(languagesProvider).map((x) => x.name).toList(),
+      speakerDiarization: ref.read(diarizationProvider),
+      translationTarget: ref.read(translationProvider),
+      contextText: ref.read(contextProvider),
+      terms: ref.read(termsProvider),
     );
     var current = soniox = SonioxWebsocket(
-      sonioxSessionConfig,
+      sessionConfig,
       websocket: SonioxWebsocketImpl(),
     );
 
@@ -489,6 +580,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     _nonFinal = '';
     _sessionError = null;
     _diarized = null;
+    _translationTarget = null;
+    _translationBuffer.clear();
+    _nonFinalTranslation = '';
   }
 
   // MARK: Sessão (transporte independente de plataforma)
@@ -516,29 +610,22 @@ class _MainPageState extends ConsumerState<MainPage> {
     // Diarização congela no início da sessão: mudar a caixa no meio de uma
     // captura não pode trocar o formato do texto que já está sendo escrito.
     _diarized = ref.read(diarizationProvider) ? DiarizedTextBuilder() : null;
+    // A tradução também é parâmetro de conexão: congela aqui e o texto da
+    // captura anterior sai da tela.
+    _translationTarget = ref.read(translationProvider);
+    _setTranslationText('');
 
     // Sessão do botão já mostra o andamento na própria sandbox: o painel
     // flutuante é do caminho da tecla global, que roda longe do app.
     if (!_sessionFromButton) HotkeyListener.showOverlay();
 
     _transcriptionSubscription?.cancel();
-    _transcriptionSubscription = current.transcription.listen((transcription) {
-      final diarized = _diarized;
-      if (diarized == null) {
-        _buffer.write(transcription.finalText);
-      } else {
-        _buffer.write(
-          diarized.take(
-            transcription.finalTokens,
-            // Base da sandbox ou falas anteriores: define a quebra de linha
-            // antes do primeiro rótulo de falante.
-            followsText: _sandboxBaseText.isNotEmpty || _buffer.isNotEmpty,
-          ),
-        );
-      }
-      _nonFinal = transcription.nonFinalText;
-      _showLiveText();
-    });
+    // Com tradução ligada a origem é a mensagem CRUA do WebSocket: só ela traz
+    // `translation_status`, e sem separar por ele o texto traduzido entraria
+    // misturado na transcrição.
+    _transcriptionSubscription = _translationTarget == null
+        ? current.transcription.listen(_onTranscription)
+        : current.rawMessages.listen(_onTranslationMessage);
 
     _errorSubscription?.cancel();
     _errorSubscription = current.errors.listen((sonioxError) {
@@ -553,6 +640,48 @@ class _MainPageState extends ConsumerState<MainPage> {
 
     current.connect();
     debugPrint('Connect command');
+  }
+
+  /// Andamento de uma sessão sem tradução: o pacote já entrega o texto pronto.
+  void _onTranscription(SonioxTranscription transcription) {
+    final diarized = _diarized;
+    if (diarized == null) {
+      _buffer.write(transcription.finalText);
+    } else {
+      _buffer.write(
+        diarized.take(
+          transcription.finalTokens,
+          // Base da sandbox ou falas anteriores: define a quebra de linha antes
+          // do primeiro rótulo de falante.
+          followsText: _sandboxBaseText.isNotEmpty || _buffer.isNotEmpty,
+        ),
+      );
+    }
+    _nonFinal = transcription.nonFinalText;
+    _showLiveText();
+  }
+
+  /// Andamento de uma sessão com tradução: o evento já vem separado em
+  /// transcrição e tradução, então os dois textos crescem no lugar certo.
+  void _onTranslationMessage(String raw) {
+    final event = TranslatedEvent.fromRawMessage(raw);
+    if (event == null) return;
+
+    final diarized = _diarized;
+    if (diarized == null) {
+      _buffer.write(event.finalOriginals.map((token) => token.text).join());
+    } else {
+      _buffer.write(
+        diarized.take(
+          event.finalOriginals,
+          followsText: _sandboxBaseText.isNotEmpty || _buffer.isNotEmpty,
+        ),
+      );
+    }
+    _nonFinal = event.nonFinalOriginals.map((token) => token.text).join();
+    _translationBuffer.write(event.finalTranslation);
+    _nonFinalTranslation = event.nonFinalTranslation;
+    _showLiveText();
   }
 
   /// Fecha a captura e entrega o texto: colado no app em foco (tecla global no
@@ -623,6 +752,12 @@ class _MainPageState extends ConsumerState<MainPage> {
   /// sessão do botão (e plataformas sem painel) escreve na própria sandbox.
   void _showLiveText() {
     final finalText = _buffer.toString();
+    // A tradução é a mesma coisa nas duas rotas: ela fica na aba Sandbox, para
+    // conferir (e copiar) depois — o painel da tecla global só mostra o
+    // transcript.
+    if (_translationTarget != null) {
+      _setTranslationText('$_translationBuffer$_nonFinalTranslation');
+    }
     if (!_sessionFromButton) {
       HotkeyListener.updateTranscription(finalText, _nonFinal);
       return;
@@ -663,6 +798,13 @@ class _MainPageState extends ConsumerState<MainPage> {
 
   void _setSandboxText(String text) {
     _sandboxController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  void _setTranslationText(String text) {
+    _translationController.value = TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
