@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soniox_transcriptor/repositories/history_store.dart';
+import 'package:soniox_transcriptor/repositories/history_store_sqlite.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -14,20 +16,15 @@ Future<SharedPreferences> setUpAppEnvironment() async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
 
-  final db = sqlite3.openInMemory()
-    ..execute('''
-      CREATE TABLE transcriptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        final_text TEXT NOT NULL,
-        non_final_text TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    ''');
+  final db = sqlite3.openInMemory();
+  final store = SqliteHistoryStore(db);
 
   await GetIt.I.reset();
   GetIt.I.registerSingleton<SharedPreferences>(prefs);
-  GetIt.I.registerSingleton<Database>(db);
-  GetIt.I.registerSingleton<TranscriptionRepository>(TranscriptionRepository());
+  GetIt.I.registerSingleton<HistoryStore>(store);
+  GetIt.I.registerSingleton<TranscriptionRepository>(
+    TranscriptionRepository(store: store),
+  );
 
   addTearDown(() async {
     db.close();

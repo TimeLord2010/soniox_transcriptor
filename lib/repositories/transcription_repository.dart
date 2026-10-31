@@ -1,65 +1,36 @@
 import 'package:get_it/get_it.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 import '../models/transcription_record.dart';
+import 'history_store.dart';
 
+/// Histórico de transcrições: o limite de registros e a API que a UI usa.
+///
+/// A persistência fica atrás de [HistoryStore] porque o web não tem sqlite3
+/// (nem `dart:ffi` nem `path_provider`).
 class TranscriptionRepository {
-  static const _maxRecords = 100;
+  /// Quantos registros o histórico guarda.
+  static const maxRecords = 100;
 
-  Database get _db => GetIt.I.get<Database>();
+  final HistoryStore _store;
+
+  /// Usa o store do GetIt — o `main()` registra o da plataforma atual, e os
+  /// testes registram um SQLite em memória (ou o store em prefs).
+  TranscriptionRepository({HistoryStore? store})
+    : _store = store ?? GetIt.I.get<HistoryStore>();
 
   void insert(TranscriptionRecord record) {
-    final stmt = _db.prepare('''
-      INSERT INTO transcriptions (final_text, non_final_text, created_at)
-      VALUES (?, ?, ?)
-    ''');
-    stmt.execute([
-      record.finalText,
-      record.nonFinalText,
-      record.createdAt.millisecondsSinceEpoch,
-    ]);
-    stmt.close();
-
+    _store.insert(record);
     _enforceMaxRecords();
   }
 
   void _enforceMaxRecords() {
-    final count = _getCount();
-    if (count > _maxRecords) {
-      final toDelete = count - _maxRecords;
-      final stmt = _db.prepare('''
-        DELETE FROM transcriptions
-        WHERE id IN (
-          SELECT id FROM transcriptions
-          ORDER BY created_at ASC
-          LIMIT ?
-        )
-      ''');
-      stmt.execute([toDelete]);
-      stmt.close();
-    }
+    final excess = _store.getAll().length - maxRecords;
+    if (excess > 0) _store.deleteOldest(excess);
   }
 
-  int _getCount() {
-    final result = _db.select('SELECT COUNT(*) as count FROM transcriptions');
-    return result.first['count'] as int;
-  }
+  List<TranscriptionRecord> getAll() => _store.getAll();
 
-  List<TranscriptionRecord> getAll() {
-    final result = _db.select('''
-      SELECT * FROM transcriptions
-      ORDER BY created_at DESC
-    ''');
-    return result.map(TranscriptionRecord.fromRow).toList();
-  }
+  void delete(int id) => _store.delete(id);
 
-  void delete(int id) {
-    final stmt = _db.prepare('DELETE FROM transcriptions WHERE id = ?');
-    stmt.execute([id]);
-    stmt.close();
-  }
-
-  void deleteAll() {
-    _db.execute('DELETE FROM transcriptions');
-  }
+  void deleteAll() => _store.deleteAll();
 }
