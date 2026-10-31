@@ -1,24 +1,18 @@
 import 'package:get_it/get_it.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'package:soniox_transcriptor/repositories/history_store.dart';
+import 'package:soniox_transcriptor/repositories/history_store_sqlite.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 
-/// Schema de `transcriptions`: o mesmo de `DatabaseModule.open`, que não pode
-/// ser usado aqui porque depende de `path_provider`.
-const _transcriptionsSchema = '''
-  CREATE TABLE IF NOT EXISTS transcriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    final_text TEXT NOT NULL,
-    non_final_text TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  )
-''';
-
-/// Abre um SQLite em memória com o schema e registra no GetIt o banco e o
-/// [TranscriptionRepository], como o `main()` faz em produção.
+/// Abre um SQLite em memória e registra no GetIt o [HistoryStore] e o
+/// [TranscriptionRepository], como o `main()` faz em produção (lá o store abre
+/// um arquivo via `path_provider`, que não existe em teste).
 Database setUpDatabase() {
   final db = sqlite3.openInMemory();
-  db.execute(_transcriptionsSchema);
-  GetIt.I.registerSingleton<Database>(db);
-  GetIt.I.registerSingleton<TranscriptionRepository>(TranscriptionRepository());
+  final store = SqliteHistoryStore(db);
+  GetIt.I.registerSingleton<HistoryStore>(store);
+  GetIt.I.registerSingleton<TranscriptionRepository>(
+    TranscriptionRepository(store: store),
+  );
   return db;
 }

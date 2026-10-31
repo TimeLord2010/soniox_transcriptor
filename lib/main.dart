@@ -3,10 +3,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 import 'components/pages/main_page.dart';
-import 'modules/database_module.dart';
+import 'repositories/history_store.dart';
+import 'repositories/history_store_factory.dart';
 import 'repositories/transcription_repository.dart';
 
 void main() async {
@@ -15,10 +15,12 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   GetIt.instance.registerSingleton<SharedPreferences>(prefs);
 
-  final db = await DatabaseModule.open();
-  GetIt.instance.registerSingleton<Database>(db);
+  // Escolhe o armazenamento da plataforma: SQLite no macOS/Android, prefs no
+  // web (onde não existe dart:ffi/path_provider).
+  final historyStore = await openHistoryStore();
+  GetIt.instance.registerSingleton<HistoryStore>(historyStore);
   GetIt.instance.registerSingleton<TranscriptionRepository>(
-    TranscriptionRepository(),
+    TranscriptionRepository(store: historyStore),
   );
 
   runApp(const MainApp());

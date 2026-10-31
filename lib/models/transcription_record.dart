@@ -1,5 +1,3 @@
-import 'package:sqlite3/sqlite3.dart';
-
 class TranscriptionRecord {
   final int? id;
   final String finalText;
@@ -15,12 +13,16 @@ class TranscriptionRecord {
 
   String get text => finalText + nonFinalText;
 
-  factory TranscriptionRecord.fromRow(Row row) {
+  /// Recebe `Map` de propósito (e não `Row` do sqlite3): este pacote também
+  /// compila para web, onde `sqlite3`/`dart:ffi` não existe. A linha devolvida
+  /// pelo banco é um `Map<String, dynamic>`, então o store em SQLite passa ela
+  /// direto.
+  factory TranscriptionRecord.fromMap(Map<String, Object?> map) {
     return TranscriptionRecord(
-      id: row['id'] as int,
-      finalText: row['final_text'] as String,
-      nonFinalText: row['non_final_text'] as String,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+      id: map['id'] as int?,
+      finalText: map['final_text'] as String,
+      nonFinalText: map['non_final_text'] as String,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
     );
   }
 
@@ -31,4 +33,8 @@ class TranscriptionRecord {
       'created_at': createdAt.millisecondsSinceEpoch,
     };
   }
+
+  /// Inclui o `id`: formato do JSON que o store web persiste em
+  /// `SharedPreferences`.
+  Map<String, Object?> toJson() => {'id': id, ...toMap()};
 }
