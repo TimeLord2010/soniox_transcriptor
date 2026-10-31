@@ -63,6 +63,7 @@ class _TranslationTargetMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final target = ref.watch(translationProvider);
+    final spoken = ref.watch(languagesProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -80,7 +81,7 @@ class _TranslationTargetMenu extends ConsumerWidget {
             children: [
               for (final language in Language.values)
                 MenuOptionRow(
-                  label: language.label,
+                  label: _labelFor(language, spoken),
                   isSelected: target == language,
                   onTap: () {
                     ref.read(translationProvider.notifier).setTarget(language);
@@ -92,5 +93,15 @@ class _TranslationTargetMenu extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// Alvo igual à única língua de entrada não traduz nada: o Soniox devolve a
+  /// fala com `translation_status: "none"` e nenhuma tradução. O rótulo avisa
+  /// antes da escolha (com mais de uma língua de entrada, o par faz sentido).
+  static String _labelFor(Language language, Set<Language> spoken) {
+    final useless = spoken.length == 1 && spoken.contains(language);
+    return useless
+        ? '${language.label} (já é a língua de entrada)'
+        : language.label;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/pages/main_page.dart';
@@ -20,10 +21,11 @@ void main() {
 
   late FakeServer server;
   late FakeRecorder recorder;
+  late SharedPreferences prefs;
 
   setUp(() async {
     PlatformSupport.debugForceSupportsGlobalHotkey(true);
-    final prefs = await setUpAppEnvironment();
+    prefs = await setUpAppEnvironment();
     await prefs.setString('profile.default.api_key', 'chave-de-teste');
 
     server = FakeServer();
@@ -70,6 +72,21 @@ void main() {
         'is_final': true,
         'language': 'pt',
         'translation_status': 'original',
+      },
+    ],
+  };
+
+  /// Fala que o Soniox transcreve mas NÃO traduz: já está no idioma alvo.
+  Map<String, dynamic> untranslated(String text) => {
+    'tokens': [
+      {
+        'text': text,
+        'start_ms': 0,
+        'end_ms': 100,
+        'confidence': 0.9,
+        'is_final': true,
+        'language': 'pt',
+        'translation_status': 'none',
       },
     ],
   };
@@ -125,6 +142,50 @@ void main() {
     await startSession(tester);
 
     expect(server.sentConfig!.containsKey('translation'), isFalse);
+  });
+
+  testWidgets('fala já no idioma alvo avisa em vez de deixar a caixa vazia', (
+    tester,
+  ) async {
+    // Alvo = português falando português: o Soniox não traduz nada.
+    await prefs.setString('profile.default.translation_target', 'pt');
+    await pumpApp(tester);
+
+    await startSession(tester);
+    server.push(untranslated('Bom dia a todos.'));
+    await tester.pump();
+
+    // A fala entra na transcrição (status "none" não é tradução)...
+    expect(textOf(tester, 'sandbox-field'), 'Bom dia a todos.');
+    // ...e a caixa da tradução explica por que está vazia.
+    expect(textOf(tester, 'sandbox-translation-field'), '');
+    expect(
+      find.text('Nada para traduzir: a fala já está em Português.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('quando a tradução começa, o aviso sai', (tester) async {
+    await prefs.setString('profile.default.translation_target', 'pt');
+    await pumpApp(tester);
+
+    await startSession(tester);
+    server.push(untranslated('Bom dia.'));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('sandbox-translation-empty')),
+      findsOneWidget,
+    );
+
+    server.push(spoken('Good morning.'));
+    server.push(translated('Bom dia.'));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('sandbox-translation-empty')),
+      findsNothing,
+    );
+    expect(textOf(tester, 'sandbox-translation-field'), 'Bom dia.');
   });
 
   testWidgets('parar a sessão guarda a tradução na tela', (tester) async {

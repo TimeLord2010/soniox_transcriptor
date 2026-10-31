@@ -104,6 +104,38 @@ void main() {
       expect(event.finalTranslation, isEmpty);
     });
 
+    test('fala sem tradução (status none) é marcada e vira transcrição', () {
+      // Alvo igual à língua falada: o Soniox transcreve com "none" e não
+      // manda nenhuma tradução.
+      final event = TranslatedEvent.fromRawMessage(
+        jsonEncode({
+          'tokens': [
+            {
+              'text': 'Bom dia',
+              'start_ms': 0,
+              'end_ms': 100,
+              'confidence': 0.9,
+              'is_final': true,
+              'language': 'pt',
+              'translation_status': 'none',
+            },
+          ],
+        }),
+      );
+
+      expect(event!.hasUntranslatedSpeech, isTrue);
+      expect(event.finalOriginals.map((token) => token.text).join(), 'Bom dia');
+      expect(event.finalTranslation, isEmpty);
+    });
+
+    test('fala traduzida não marca a flag de "nada para traduzir"', () {
+      final event = TranslatedEvent.fromRawMessage(
+        message([original('Bom dia', isFinal: true), translation('Good')]),
+      );
+
+      expect(event!.hasUntranslatedSpeech, isFalse);
+    });
+
     test('erro do Soniox não é evento de tokens', () {
       final event = TranslatedEvent.fromRawMessage(
         jsonEncode({

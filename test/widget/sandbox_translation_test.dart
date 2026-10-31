@@ -87,8 +87,21 @@ void main() {
     await tester.tap(find.text('Língua alvo: Inglês'));
     await tester.pumpAndSettle();
     expect(find.byType(MenuOptionRow), findsNWidgets(2));
+    // Alvo igual à única língua de entrada não traduz nada: o menu avisa.
+    expect(
+      find.widgetWithText(
+        MenuOptionRow,
+        'Português (já é a língua de entrada)',
+      ),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.widgetWithText(MenuOptionRow, 'Português'));
+    await tester.tap(
+      find.widgetWithText(
+        MenuOptionRow,
+        'Português (já é a língua de entrada)',
+      ),
+    );
     await tester.pumpAndSettle();
 
     // O menu de alvo fecha; os ajustes continuam abertos para conferir o resto.

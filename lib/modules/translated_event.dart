@@ -29,11 +29,16 @@ class TranslatedEvent {
   /// Prévia da tradução ainda não final.
   final String nonFinalTranslation;
 
+  /// Chegou fala com `translation_status: "none"`: o Soniox transcreveu mas NÃO
+  /// traduziu, porque a fala já está na língua alvo (não há o que traduzir).
+  final bool hasUntranslatedSpeech;
+
   const TranslatedEvent({
     this.finalOriginals = const [],
     this.nonFinalOriginals = const [],
     this.finalTranslation = '',
     this.nonFinalTranslation = '',
+    this.hasUntranslatedSpeech = false,
   });
 
   /// Lê uma mensagem crua do Soniox. Devolve `null` para eventos sem tokens
@@ -49,6 +54,7 @@ class TranslatedEvent {
     final nonFinalOriginals = <TranscriptionToken>[];
     final finalTranslation = StringBuffer();
     final nonFinalTranslation = StringBuffer();
+    var hasUntranslatedSpeech = false;
 
     for (final Object? item in rawTokens) {
       // Token malformado não pode derrubar a sessão: o resto do evento ainda
@@ -60,13 +66,16 @@ class TranslatedEvent {
       // Marcador de fim de fala, não é conteúdo (nem para traduzir).
       if (text == '<end>') continue;
 
-      final isTranslation = map['translation_status'] == 'translation';
+      final status = map['translation_status'];
+      final isTranslation = status == 'translation';
       final isFinal = map['is_final'] == true;
+      final isUntranslated = status == 'none';
 
       if (isTranslation) {
         (isFinal ? finalTranslation : nonFinalTranslation).write(text);
         continue;
       }
+      if (isUntranslated) hasUntranslatedSpeech = true;
 
       final token = TranscriptionToken(
         text: text,
@@ -85,6 +94,7 @@ class TranslatedEvent {
       nonFinalOriginals: nonFinalOriginals,
       finalTranslation: finalTranslation.toString(),
       nonFinalTranslation: nonFinalTranslation.toString(),
+      hasUntranslatedSpeech: hasUntranslatedSpeech,
     );
   }
 }
