@@ -24,6 +24,11 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
   @override
   void initState() {
     recorder.listInputDevices().then((_) {
+      // Enumerar dispositivo é assíncrono e no navegador é lento (só devolve
+      // rótulo depois da permissão de microfone): a aba pode ser trocada antes
+      // e aí o widget já saiu da árvore — setState depois de dispose derruba
+      // com `_DevicePickerState ... defunct, not mounted`.
+      if (!mounted) return;
       setState(() {
         _devices = recorder.devices;
         _selectedDevice = recorder.selectedDevice;
