@@ -20,6 +20,15 @@ class RecorderRepository {
   /// Full capture starts (the native plugin already retries internally).
   static const maxStartAttempts = 2;
 
+  /// Quanto esperar o plugin ABRIR a captura. No navegador `getUserMedia` pode
+  /// nunca resolver (permissão de microfone travada) e aí o app ficava parado
+  /// para sempre, sem toast: o `await` de `startStream` nunca voltava.
+  static const defaultStartTimeout = Duration(seconds: 8);
+
+  /// Limite em vigor; os testes encurtam para não esperar 8 s.
+  @visibleForTesting
+  Duration startTimeout = defaultStartTimeout;
+
   // Criado sob demanda: o construtor do plugin já fala com o canal nativo, e
   // um teste que troca o gravador não deve tocar no plugin.
   late final AudioRecorder _record = AudioRecorder();
@@ -67,14 +76,18 @@ class RecorderRepository {
   /// diálogo do sistema aparece; sem isso a primeira gravação morreria em erro
   /// depois de abrir a conexão com a Soniox.
   Future<bool> requestMicPermission() async {
-    final allowed = await _record.hasPermission();
+    final allowed = await hasPluginPermission();
     debugPrint('[recorder] permissão de microfone: $allowed');
     return allowed;
   }
 
   Future<void> start() async {
     final generation = ++_generation;
-    final isAllowedToRecord = await _record.hasPermission();
+    // Também com limite: no navegador a consulta de permissão pode pendurar.
+    final isAllowedToRecord = await hasPluginPermission().timeout(
+      startTimeout,
+      onTimeout: () => false,
+    );
     if (!isAllowedToRecord) {
       _emitError(permissionDeniedMessage);
       return;
@@ -87,7 +100,7 @@ class RecorderRepository {
         return;
       }
       try {
-        await _startCapture();
+        await _startCapture().timeout(startTimeout);
         if (await _waitForFirstChunk()) {
           if (attempt > 1) {
             debugPrint('[recorder] captura iniciada na tentativa $attempt');
@@ -96,6 +109,15 @@ class RecorderRepository {
         }
         lastFailure =
             'nenhum áudio chegou em ${firstChunkTimeout.inMilliseconds} ms';
+      } on TimeoutException {
+        // Não adianta tentar de novo: se o plugin não abriu a captura no
+        // limite, é permissão travada, não falha de dispositivo.
+        lastFailure =
+            'o microfone não abriu em ${startTimeout.inSeconds}s '
+            '(${PlatformSupport.name})';
+        debugPrint('[recorder] tentativa $attempt estourou: $lastFailure');
+        await _stopCapture();
+        break;
       } catch (error) {
         lastFailure = '$error';
       }
@@ -103,10 +125,13 @@ class RecorderRepository {
       await _stopCapture();
     }
 
+    final hint = PlatformSupport.isWeb
+        ? 'Libere o microfone para este site no navegador '
+              '(ícone da barra de endereços) e tente de novo.'
+        : 'Tente trocar o dispositivo ou reconectar o microfone.';
     _emitError(
       'Não foi possível capturar áudio do microfone '
-      '"${selectedDevice?.label ?? 'padrão'}". '
-      'Tente trocar o dispositivo ou reconectar o microfone. ($lastFailure)',
+      '"${selectedDevice?.label ?? 'padrão'}". $hint ($lastFailure)',
     );
   }
 
@@ -115,14 +140,7 @@ class RecorderRepository {
     _nativeSubscription = null;
 
     final firstChunk = _firstChunk = Completer<void>();
-    final stream = await _record.startStream(
-      RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        numChannels: 1,
-        sampleRate: 16000,
-        device: selectedDevice,
-      ),
-    );
+    final stream = await openAudioStream();
     // Forward the native audio stream to the broadcast controller using a
     // listener. Cancel any previous subscription to avoid duplicate listeners.
     _nativeSubscription = stream.listen((data) {
@@ -133,6 +151,29 @@ class RecorderRepository {
         _recordStreamController.add(data);
       }
     });
+  }
+
+  /// Pergunta ao plugin se o microfone está liberado (`getUserMedia` no web).
+  ///
+  /// Costura de teste, como [openAudioStream]: o plugin real não deixa simular
+  /// a permissão travada do navegador.
+  @visibleForTesting
+  Future<bool> hasPluginPermission() => _record.hasPermission();
+
+  /// Abre o stream de áudio do plugin.
+  ///
+  /// Costura de teste: o `AudioRecorder` real é `late final` e não deixa
+  /// simular o caso do navegador, em que `getUserMedia` nunca resolve.
+  @visibleForTesting
+  Future<Stream<Uint8List>> openAudioStream() {
+    return _record.startStream(
+      RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        numChannels: 1,
+        sampleRate: 16000,
+        device: selectedDevice,
+      ),
+    );
   }
 
   /// Waits for the first chunk of the capture in flight.
