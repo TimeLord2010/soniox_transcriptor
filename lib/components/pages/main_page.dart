@@ -108,6 +108,12 @@ class _MainPageState extends ConsumerState<MainPage> {
   bool _translationLogged = false;
   bool _translationErrorReported = false;
 
+  /// A sessão recebeu fala que o Soniox não traduziu (`translation_status` =
+  /// "none"): a fala já está na língua alvo. Sem essa explicação o campo da
+  /// tradução fica vazio e parece defeito.
+  bool _untranslatedSpeech = false;
+  bool _showNothingToTranslate = false;
+
   int currentPage = 0;
 
   @override
@@ -294,6 +300,17 @@ class _MainPageState extends ConsumerState<MainPage> {
             ],
           ),
         ),
+        if (_showNothingToTranslate) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Nada para traduzir: a fala já está em ${target.label}.',
+            key: const ValueKey('sandbox-translation-empty'),
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.tertiaryLabel,
+            ),
+          ),
+        ],
         const SizedBox(height: kLabelSpacing),
         Expanded(
           child: CupertinoTextField(
@@ -630,6 +647,8 @@ class _MainPageState extends ConsumerState<MainPage> {
     _nonFinalTranslation = '';
     _translationLogged = false;
     _translationErrorReported = false;
+    _untranslatedSpeech = false;
+    _showNothingToTranslate = false;
   }
 
   // MARK: Sessão (transporte independente de plataforma)
@@ -739,13 +758,28 @@ class _MainPageState extends ConsumerState<MainPage> {
       );
     }
     _nonFinal = event.nonFinalOriginals.map((token) => token.text).join();
+    if (event.hasUntranslatedSpeech) _untranslatedSpeech = true;
     _translationBuffer.write(event.finalTranslation);
     _nonFinalTranslation = event.nonFinalTranslation;
     if (!_translationLogged && _translationBuffer.isNotEmpty) {
       _translationLogged = true;
       debugPrint('[session] primeira tradução recebida: $_translationBuffer');
     }
+    _refreshNothingToTranslate();
     _showLiveText();
+  }
+
+  /// Ligado quando o Soniox transcreveu sem traduzir (fala já no idioma alvo).
+  /// Só muda o estado do widget quando o aviso realmente entra ou sai.
+  void _refreshNothingToTranslate() {
+    final shouldShow =
+        _translationTarget != null &&
+        _untranslatedSpeech &&
+        _translationBuffer.isEmpty &&
+        _nonFinalTranslation.isEmpty;
+    if (shouldShow == _showNothingToTranslate) return;
+    _showNothingToTranslate = shouldShow;
+    if (mounted) setState(() {});
   }
 
   /// Falha do caminho da tradução: aparece uma vez por sessão (toast) e vai para
