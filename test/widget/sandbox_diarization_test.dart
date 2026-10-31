@@ -6,8 +6,8 @@ import 'package:soniox_transcriptor/repositories/diarization_repository.dart';
 
 import '../helpers/widget_harness.dart';
 
-/// A diarização é uma opção de sessão da aba da sandbox: liga/desliga pelo
-/// checkbox e fica salva por perfil.
+/// A diarização é uma opção de sessão da sandbox: mora nos ajustes da captura
+/// (popup do ícone ao lado do botão de gravar) e fica salva por perfil.
 void main() {
   tearDown(() => PlatformSupport.debugForceSupportsGlobalHotkey(null));
 
@@ -16,6 +16,11 @@ void main() {
     await setUpAppEnvironment();
     await pumpCupertinoWidget(tester, const MainPage());
     await openSandboxTab(tester);
+  }
+
+  Future<void> openSettings(WidgetTester tester) async {
+    await tester.tap(find.byKey(const ValueKey('sandbox-settings')));
+    await tester.pumpAndSettle();
   }
 
   IconData checkboxIcon(WidgetTester tester) {
@@ -28,10 +33,11 @@ void main() {
     return icon.icon!;
   }
 
-  testWidgets('a aba da sandbox começa com diarização desligada', (
+  testWidgets('a diarização fica nos ajustes e começa desligada', (
     tester,
   ) async {
     await openPage(tester);
+    await openSettings(tester);
 
     expect(find.text('Diarização'), findsOneWidget);
     expect(checkboxIcon(tester), CupertinoIcons.circle);
@@ -42,6 +48,7 @@ void main() {
     tester,
   ) async {
     await openPage(tester);
+    await openSettings(tester);
 
     await tester.tap(find.text('Diarização'));
     await tester.pump();
@@ -65,6 +72,7 @@ void main() {
     await DiarizationRepository('default').setSpeakerDiarization(true);
     await pumpCupertinoWidget(tester, const MainPage());
     await openSandboxTab(tester);
+    await openSettings(tester);
 
     expect(checkboxIcon(tester), CupertinoIcons.check_mark_circled_solid);
   });

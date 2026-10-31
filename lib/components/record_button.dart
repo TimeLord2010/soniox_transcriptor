@@ -48,14 +48,20 @@ class RecordButton extends StatelessWidget {
               size: 22,
             ),
             const SizedBox(width: 8),
-            Text(
-              isRecording
-                  ? 'Ouvindo… ${pointerVerb.toLowerCase()} para parar'
-                  : '$pointerVerb para gravar',
-              style: TextStyle(
-                color: color,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            // Rótulo elástico: a linha também carrega o ícone de ajustes, e em
+            // tela estreita o texto precisa ceder em vez de estourar.
+            Flexible(
+              child: Text(
+                isRecording
+                    ? 'Ouvindo… ${pointerVerb.toLowerCase()} para parar'
+                    : '$pointerVerb para gravar',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
