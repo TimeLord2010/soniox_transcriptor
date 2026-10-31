@@ -1,4 +1,4 @@
-package com.example.soniox_transcriptor
+package com.vit.soniox
 
 import io.flutter.embedding.android.FlutterActivity
 
