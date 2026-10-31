@@ -51,17 +51,48 @@ export JAVA_HOME="$JDK"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 flutter pub get
-# Símbolos de um build anterior não desofuscam este: sempre do zero.
-rm -rf "$SYMBOLS_DIR"
+
+# Símbolos vão para um diretório temporário e só substituem os antigos quando o
+# build realmente gerou novos: build servido do cache do Gradle não regenera o
+# arquivo, e apagar antes deixaria um APK ofuscado sem como desofuscar.
+STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
 
 flutter build apk --release \
   --target-platform android-arm64 \
   --obfuscate \
-  --split-debug-info="$SYMBOLS_DIR"
+  --split-debug-info="$STAGE_DIR"
 
 if [ ! -f "$APK" ]; then
   echo "ERRO: APK não foi gerado em $APK" >&2
   exit 1
+fi
+
+FRESH_SYMBOLS="$(ls "$STAGE_DIR"/*.symbols 2>/dev/null | head -1 || true)"
+if [ -n "$FRESH_SYMBOLS" ]; then
+  rm -rf "$SYMBOLS_DIR"
+  mkdir -p "$SYMBOLS_DIR"
+  cp "$STAGE_DIR"/*.symbols "$SYMBOLS_DIR/"
+else
+  echo "AVISO: o build veio do cache e não gerou símbolos novos." >&2
+  if [ -z "$(ls "$SYMBOLS_DIR"/*.symbols 2>/dev/null || true)" ]; then
+    echo "       Não há símbolo nenhum: rode 'flutter clean' antes de distribuir." >&2
+  fi
+fi
+
+# Entrega em ~/Downloads com nome versionado (é o arquivo que vai para o
+# aparelho). APK_OUT_DIR permite mandar para outro lugar.
+VERSION="$(grep -E '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+DEST_DIR="${APK_OUT_DIR:-$HOME/Downloads}"
+DEST_APK="$DEST_DIR/soniox_transcriptor-${VERSION}-arm64.apk"
+mkdir -p "$DEST_DIR"
+cp -f "$APK" "$DEST_APK"
+SYMBOLS_FILE="$(ls "$SYMBOLS_DIR"/*.symbols 2>/dev/null | head -1 || true)"
+DEST_SYMBOLS="${DEST_APK%.apk}.symbols"
+if [ -n "$SYMBOLS_FILE" ]; then
+  cp -f "$SYMBOLS_FILE" "$DEST_SYMBOLS"
+else
+  DEST_SYMBOLS="(nenhum)"
 fi
 
 # aapt2 prova o que o APK declara: ABIs compiladas e versões mínima/alvo.
@@ -79,6 +110,8 @@ echo "APK.........: $APK"
 echo "Tamanho.....: $(du -h "$APK" | awk '{print $1}')"
 echo "Símbolos....: $SYMBOLS_DIR (guardar para desofuscar stack traces)"
 echo "JDK.........: $JAVA_HOME"
+echo "Entregue....: $DEST_APK"
+echo "Símbolos DL.: $DEST_SYMBOLS"
 
 AAPT="$(find_aapt2 || true)"
 if [ -n "$AAPT" ]; then
