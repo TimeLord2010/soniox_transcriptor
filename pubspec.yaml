@@ -14,6 +14,8 @@ dependencies:
   gap: ^3.0.1
   get_it: ^9.2.1
   shared_preferences: ^2.5.5
+  # Insets do navegador (visualViewport): a barra do Safari cobre o rodapé.
+  web: ^1.1.2
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
   vit_soniox: ^1.0.3
