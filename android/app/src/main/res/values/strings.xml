@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nome que aparece na lista de teclados do sistema. -->
+    <string name="ime_name">Soniox ditado</string>
+    <string name="ime_subtype_label">Português (Soniox)</string>
+</resources>

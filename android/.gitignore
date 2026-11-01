@@ -1,5 +1,7 @@
 gradle-wrapper.jar
 /.gradle
+# Cache do compilador Kotlin (gerado a cada build).
+.kotlin/
 /captures/
 /gradlew
 /gradlew.bat
