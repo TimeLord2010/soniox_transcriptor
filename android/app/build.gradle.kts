@@ -59,6 +59,17 @@ kotlin {
     }
 }
 
+dependencies {
+    // Cliente WebSocket do teclado de ditado — Kotlin nativo, fora do motor do
+    // Flutter (um IME não hospeda Flutter).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Testes JVM do contrato de sessão. O `org.json` de teste precisa vir do
+    // Maven: o stub do android.jar só dá `null`/`throw` nas chamadas.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}
+
 flutter {
     source = "../.."
 }

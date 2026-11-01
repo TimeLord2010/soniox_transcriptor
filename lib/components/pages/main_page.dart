@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/components/api_key_setter.dart';
+import 'package:soniox_transcriptor/components/android_keyboard_setter.dart';
 import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
@@ -18,6 +19,7 @@ import 'package:soniox_transcriptor/components/translation_settings.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
+import 'package:soniox_transcriptor/modules/keyboard_session.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
 import 'package:soniox_transcriptor/modules/session_config.dart';
 import 'package:soniox_transcriptor/modules/translated_event.dart';
@@ -125,6 +127,9 @@ class _MainPageState extends ConsumerState<MainPage> {
       });
     }
     _updateSonioxInstance();
+    // O teclado Android lê um blob nas preferências, não os providers: publica
+    // o perfil ativo já na abertura do app.
+    _publishKeyboardSession();
   }
 
   @override
@@ -161,6 +166,14 @@ class _MainPageState extends ConsumerState<MainPage> {
       _scheduleSessionRebuild();
       _notifyPendingSetting();
     });
+    // Reaproveita os mesmos ajustes para republicar o blob do teclado Android:
+    // ele só conhece o perfil ativo pelo que o app escreve nas preferências.
+    ref.listen(apiKeyProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(activeProfileIdProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(contextProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(languagesProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(termsProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(translationProvider, (_, _) => _publishKeyboardSession());
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -231,6 +244,9 @@ class _MainPageState extends ConsumerState<MainPage> {
           LanguagePicker(),
           TranslationSettings(key: ValueKey('home-translation')),
           ContextTextSetter(key: ValueKey('context-$profileId')),
+          // Só no Android: nos outros sistemas o teclado não existe, e bloco de
+          // recurso morto na tela é ruído.
+          if (PlatformSupport.isAndroid) const AndroidKeyboardSetter(),
         ],
       ),
     );
@@ -558,6 +574,23 @@ class _MainPageState extends ConsumerState<MainPage> {
   void _notifyPendingSetting() {
     if (!_isProcessing || !mounted) return;
     showToast(context, 'Vale a partir da próxima captura.');
+  }
+
+  /// Mantém o blob do teclado Android em dia.
+  ///
+  /// O teclado é nativo e não vê providers: ele lê este JSON das preferências
+  /// (`KeyboardSession`), então toda mudança que muda a sessão precisa republicar
+  /// — chave, perfil, idiomas, termos, contexto e tradução.
+  void _publishKeyboardSession() {
+    KeyboardSession.publish(
+      apiKey: ref.read(apiKeyProvider),
+      languages: ref.read(languagesProvider),
+      contextText: ref.read(contextProvider),
+      terms: ref.read(termsProvider),
+      translationTarget: ref.read(translationProvider),
+    ).catchError((Object e) {
+      debugPrint('[MainPage] publishKeyboardSession error: $e');
+    });
   }
 
   void _updateSonioxInstance() {

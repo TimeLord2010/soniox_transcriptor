@@ -4,6 +4,11 @@
          a permissão que o template traz mora só no manifesto de debug. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- O teclado grava microfone enquanto está aberto; Android 11+ exige
+         serviço em primeiro plano do tipo `microphone` para a captura. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-feature android:name="android.hardware.microphone" android:required="true"/>
     <application
         android:label="soniox_transcriptor"
@@ -31,6 +36,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Teclado de ditado: aparece em Configurações → Teclados. O serviço
+             só recebe eventos de sistema (BIND_INPUT_METHOD). -->
+        <service
+            android:name=".keyboard.SonioxKeyboardService"
+            android:label="@string/ime_name"
+            android:exported="true"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:foregroundServiceType="microphone">
+            <intent-filter>
+                <action android:name="android.view.InputMethod"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/keyboard_method" />
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
