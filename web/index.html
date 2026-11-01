@@ -69,5 +69,39 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+
+  <!--
+    No celular o Flutter dimensiona a tela pelo LAYOUT viewport (window.inner*),
+    que inclui a faixa ATRÁS da barra do navegador: o rodapé do app (a tab bar) e
+    a borda direita caem fora da área visível. `visualViewport` é a área que o
+    usuário realmente vê — o engine segue o tamanho do elemento `flutter-view`,
+    então basta amarrar o elemento a ela.
+    Sem isso, `SafeArea` não resolve: no web `MediaQuery.padding` é zero.
+  -->
+  <script>
+    (function () {
+      function fit() {
+        var vv = window.visualViewport;
+        var w = Math.round(vv ? vv.width : window.innerWidth);
+        var h = Math.round(vv ? vv.height : window.innerHeight);
+        var view = document.querySelector('flutter-view');
+        if (!view) return;
+        if (view.style.width !== w + 'px') view.style.width = w + 'px';
+        if (view.style.height !== h + 'px') view.style.height = h + 'px';
+      }
+      window.addEventListener('resize', fit);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', fit);
+        window.visualViewport.addEventListener('scroll', fit);
+      }
+      // O `flutter-view` só existe depois que o engine sobe: procura por um
+      // tempo curto em vez de depender de um único evento.
+      var tentativas = 0;
+      var timer = setInterval(function () {
+        fit();
+        if (++tentativas > 40) clearInterval(timer);
+      }, 250);
+    })();
+  </script>
 </body>
 </html>
