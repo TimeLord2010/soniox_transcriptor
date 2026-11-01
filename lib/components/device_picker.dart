@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 import 'package:record/record.dart';
+import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/modules/local_storage_module.dart';
 import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
@@ -41,20 +43,33 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
   @override
   Widget build(BuildContext context) {
     final label = _selectedDevice?.label ?? 'Padrão';
+    // Rótulo + valor selecionado, nada além disso: o chevron e a superfície de
+    // campo vêm do MenuTrigger (mesmo padrão do perfil), não de um botão
+    // montado à mão. O texto é elástico porque rótulo de microfone é longo e,
+    // rígido, estourava a linha e aparecia cortado.
     return Row(
       children: [
-        const Text('Dispositivo'),
-        const Spacer(),
-        CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _devices.isEmpty ? null : () => _showDevicePicker(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label),
-              const SizedBox(width: 4),
-              const Icon(CupertinoIcons.chevron_up_chevron_down, size: 14),
-            ],
+        const Text('Dispositivo', style: sectionLabelStyle),
+        const Gap(12),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: MenuTrigger(
+              onPressed: _devices.isEmpty
+                  ? null
+                  : () => _showDevicePicker(context),
+              child: Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],

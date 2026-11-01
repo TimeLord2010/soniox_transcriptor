@@ -28,7 +28,7 @@ class MenuTrigger extends StatelessWidget {
   const MenuTrigger({super.key, required this.child, required this.onPressed});
 
   final Widget child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
