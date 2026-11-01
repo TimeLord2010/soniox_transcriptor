@@ -188,10 +188,12 @@ class _MainPageState extends ConsumerState<MainPage>
     ref.listen(termsProvider, (_, _) => _publishKeyboardSession());
     ref.listen(translationProvider, (_, _) => _publishKeyboardSession());
     // No navegador a barra do Safari cobre o rodapé do layout viewport (o
-    // engine dimensiona por documentElement.clientHeight e ignora o
-    // visualViewport fora de edição de texto). O SafeArea não vê isso no web —
-    // o inset vem do visualViewport.
-    final bottomInset = PlatformSupport.isWeb ? browserBottomInset() : 0.0;
+    // engine dimensiona por documentElement.client* e ignora o visualViewport
+    // fora de edição de texto). O SafeArea não vê isso no web — o recuo vem do
+    // visualViewport, nos três lados em que ele aparece.
+    final browserPadding = PlatformSupport.isWeb
+        ? browserInsets()
+        : EdgeInsets.zero;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -199,7 +201,7 @@ class _MainPageState extends ConsumerState<MainPage>
       // gestos. No macOS os insets são zero, então nada muda.
       child: SafeArea(
         child: Padding(
-          padding: EdgeInsets.only(bottom: bottomInset),
+          padding: browserPadding,
           child: Stack(
             children: [
               Positioned.fill(child: _content()),
