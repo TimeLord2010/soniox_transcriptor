@@ -99,22 +99,8 @@ ngrok http "127.0.0.1:$PORT" --url="https://$DOMAIN" --log "$NGROK_LOG" >/dev/nu
 NGROK_PID=$!
 
 if ! wait_for_tunnel; then
-  echo "--- últimas linhas do ngrok ($NGROK_LOG) ---" >&2
-  tail -n 20 "$NGROK_LOG" >&2 || true
-  die "o túnel não subiu para o domínio $DOMAIN (dono já usando o domínio? authtoken inválido?)."
-fi
-
-# Prova real da URL pública, não só do processo: o edge do ngrok devolve 404
-# enquanto o túnel não está registrado. O header pula o aviso do free tier.
-STATUS="$(curl -sS -o /dev/null -w '%{http_code}' \
-  --retry 10 --retry-all-errors --retry-delay 1 \
-  -H 'ngrok-skip-browser-warning: true' \
-  "https://$DOMAIN/" 2>/dev/null || true)"
-
-if [ "$STATUS" != "200" ]; then
-  echo "--- últimas linhas do ngrok ($NGROK_LOG) ---" >&2
-  tail -n 20 "$NGROK_LOG" >&2 || true
-  die "https://$DOMAIN não respondeu 200 (obtido: ${STATUS:-sem resposta})."
+  echo "AVISO: o log do ngrok não confirmou o túnel em 30s — o processo SEGUE rodando." >&2
+  echo "       Confira https://$DOMAIN e o log em $NGROK_LOG" >&2
 fi
 
 echo
