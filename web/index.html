@@ -20,6 +20,32 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Transcrição em tempo real com a API Soniox.">
 
+  <!-- Sem viewport o celular usa o viewport de 980px e escala a página. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!--
+    No celular o layout viewport inclui a área ATRÁS da barra do navegador: com
+    100vh a tab bar fica obstruída pelos controles do navegador. `dvh` é a altura
+    do viewport dinâmico (encolhe junto com a barra) e é o tamanho que o Flutter
+    precisa enxergar. `vh` fica como fallback para navegador sem dvh.
+    O SafeArea do Flutter não resolve isso: no web `MediaQuery.padding` é zero,
+    porque a barra do navegador não é inset do sistema.
+  -->
+  <style>
+    html, body {
+      height: 100vh;
+      height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #f2f2f7;
+    }
+    flutter-view {
+      height: 100vh;
+      height: 100dvh;
+    }
+  </style>
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
