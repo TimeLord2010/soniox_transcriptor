@@ -28,6 +28,8 @@
     100vh a tab bar fica obstruída pelos controles do navegador. `dvh` é a altura
     do viewport dinâmico (encolhe junto com a barra) e é o tamanho que o Flutter
     precisa enxergar. `vh` fica como fallback para navegador sem dvh.
+    Sem `overflow: hidden`: o canvas do engine pode ser maior que o container e o
+    clipping comia a barra de navegação inferior.
     O SafeArea do Flutter não resolve isso: no web `MediaQuery.padding` é zero,
     porque a barra do navegador não é inset do sistema.
   -->
@@ -37,7 +39,6 @@
       height: 100dvh;
       margin: 0;
       padding: 0;
-      overflow: hidden;
       background-color: #f2f2f7;
     }
     flutter-view {
