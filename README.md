@@ -52,3 +52,21 @@ pastas de 32 bits e de emulador, então o artefato não se declara instalável e
 aparelho antigo (que instalaria e morreria sem `libflutter.so`). Todas as libs
 nativas estão alinhadas para páginas de 16 KB, exigência das versões recentes do
 Android.
+
+## Web (build + túnel)
+
+```bash
+tool/serve_web.sh        # builda build/web e publica em https://vit-transcriptor.ngrok.app
+```
+
+O script roda `flutter pub get` + `flutter build web --release`, sobe um servidor
+estático em `127.0.0.1:8080` (`WEB_PORT` muda a porta) e abre o túnel ngrok no
+domínio reservado `vit-transcriptor.ngrok.app` (`NGROK_DOMAIN` muda o domínio).
+Fica em primeiro plano até Ctrl+C, que derruba servidor e túnel juntos; se o
+túnel não registrar o domínio em 30 s, ou a URL pública não devolver 200, ele
+falha mostrando o log do ngrok em vez de anunciar uma URL quebrada.
+
+Microfone só é liberado pelo navegador em origem segura — teste a captura pela
+URL do ngrok, não por `127.0.0.1`. O histórico no web usa `SharedPreferences`
+(JSON), não SQLite. Logs em `build/web-server.log` e `build/ngrok.log`.
+
