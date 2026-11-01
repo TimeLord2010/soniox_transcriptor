@@ -1,14 +1,17 @@
+import 'package:flutter/widgets.dart';
+
 import 'browser_viewport_stub.dart'
     if (dart.library.js_interop) 'browser_viewport_web.dart'
     as impl;
 
-/// Altura, em pixels lógicos, da faixa do app que a barra do navegador cobre.
+/// Recuo, em pixels lógicos, entre o layout viewport e a área que o usuário
+/// realmente vê no navegador.
 ///
-/// No navegador o `MediaQuery.padding` é zero (barra do navegador não é inset
-/// do sistema), e no iOS o engine dimensiona a tela por
-/// `documentElement.clientHeight` — que é o layout viewport, MAIOR que a área
-/// visível: o rodapé (a tab bar) ficava atrás da barra do Safari. Quem sabe a
-/// diferença é o `visualViewport`, então o inset vem de lá.
+/// No web o `MediaQuery.padding` é zero (a barra do navegador não é inset do
+/// sistema) e no iOS o engine dimensiona a tela por `documentElement.client*`
+/// — o layout viewport, MAIOR que a área visível. Daí a tab bar ficar atrás da
+/// barra do Safari e o conteúdo ser cortado à direita. Quem sabe a diferença é
+/// o `visualViewport`, então o recuo vem de lá.
 ///
-/// Zero fora do navegador.
-double browserBottomInset() => impl.browserBottomInset();
+/// Fora do navegador é [EdgeInsets.zero].
+EdgeInsets browserInsets() => impl.browserInsets();

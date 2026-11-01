@@ -1,2 +1,4 @@
+import 'package:flutter/widgets.dart';
+
 /// Fora do navegador não existe barra de navegador para descontar.
-double browserBottomInset() => 0;
+EdgeInsets browserInsets() => EdgeInsets.zero;
