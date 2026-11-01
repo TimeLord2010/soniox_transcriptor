@@ -18,6 +18,7 @@ import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/components/translation_settings.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/modules/browser_viewport.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
 import 'package:soniox_transcriptor/modules/keyboard_session.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
@@ -41,7 +42,8 @@ class MainPage extends ConsumerStatefulWidget {
   ConsumerState<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends ConsumerState<MainPage> {
+class _MainPageState extends ConsumerState<MainPage>
+    with WidgetsBindingObserver {
   late final hotkeyListener = HotkeyListener(
     onKeyDown: () {},
     onKeyUp: () {},
@@ -121,6 +123,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (PlatformSupport.supportsGlobalHotkey) {
       hotkeyListener.start().catchError((Object e) {
         debugPrint('[MainPage] hotkeyListener.start() error: $e');
@@ -132,6 +135,13 @@ class _MainPageState extends ConsumerState<MainPage> {
     _publishKeyboardSession();
   }
 
+  /// No navegador, métricas novas (a barra do Safari aparecer/sumir, rotação)
+  /// mudam o inset do rodapé. Sem isso a tab bar volta para trás da barra.
+  @override
+  void didChangeMetrics() {
+    if (PlatformSupport.isWeb) setState(() {});
+  }
+
   @override
   void dispose() {
     // The native hotkey monitor is a single, app-global resource. MainPage can
@@ -139,6 +149,9 @@ class _MainPageState extends ConsumerState<MainPage> {
     // calling the static stop() here would tear down the monitor that a newer,
     // still-alive MainPage just registered. Let it live for the app's
     // lifetime; the OS reclaims it on exit.
+    // Não remover: o observer é o único caminho para recalcular o inset do
+    // rodapé no navegador.
+    WidgetsBinding.instance.removeObserver(this);
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
     _translationController.dispose();
@@ -174,44 +187,52 @@ class _MainPageState extends ConsumerState<MainPage> {
     ref.listen(languagesProvider, (_, _) => _publishKeyboardSession());
     ref.listen(termsProvider, (_, _) => _publishKeyboardSession());
     ref.listen(translationProvider, (_, _) => _publishKeyboardSession());
+    // No navegador a barra do Safari cobre o rodapé do layout viewport (o
+    // engine dimensiona por documentElement.clientHeight e ignora o
+    // visualViewport fora de edição de texto). O SafeArea não vê isso no web —
+    // o inset vem do visualViewport.
+    final bottomInset = PlatformSupport.isWeb ? browserBottomInset() : 0.0;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
       // fica atrás da barra de status/recorte e a tab bar atrás da barra de
       // gestos. No macOS os insets são zero, então nada muda.
       child: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(child: _content()),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: CupertinoTabBar(
-                currentIndex: currentPage,
-                onTap: (value) {
-                  setState(() => currentPage = value);
-                },
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(CupertinoIcons.house),
-                    activeIcon: Icon(CupertinoIcons.house_fill),
-                    label: 'Início',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(CupertinoIcons.text_alignleft),
-                    activeIcon: Icon(CupertinoIcons.text_alignleft),
-                    label: 'Sandbox',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(CupertinoIcons.clock),
-                    activeIcon: Icon(CupertinoIcons.clock_fill),
-                    label: 'Histórico',
-                  ),
-                ],
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Stack(
+            children: [
+              Positioned.fill(child: _content()),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: CupertinoTabBar(
+                  currentIndex: currentPage,
+                  onTap: (value) {
+                    setState(() => currentPage = value);
+                  },
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.house),
+                      activeIcon: Icon(CupertinoIcons.house_fill),
+                      label: 'Início',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.text_alignleft),
+                      activeIcon: Icon(CupertinoIcons.text_alignleft),
+                      label: 'Sandbox',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.clock),
+                      activeIcon: Icon(CupertinoIcons.clock_fill),
+                      label: 'Histórico',
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
