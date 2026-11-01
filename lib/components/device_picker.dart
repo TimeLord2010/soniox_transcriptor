@@ -43,32 +43,26 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
   @override
   Widget build(BuildContext context) {
     final label = _selectedDevice?.label ?? 'Padrão';
-    // Rótulo + valor selecionado, nada além disso: o chevron e a superfície de
-    // campo vêm do MenuTrigger (mesmo padrão do perfil), não de um botão
-    // montado à mão. O texto é elástico porque rótulo de microfone é longo e,
-    // rígido, estourava a linha e aparecia cortado.
+    // A linha é só o rótulo e o dispositivo escolhido — sem pill, sem chevron,
+    // sem ícone. O botão existe apenas para dar toque e área de alvo; o texto
+    // ocupa todo o espaço que sobra (é o que evita o corte em tela estreita).
     return Row(
       children: [
         const Text('Dispositivo', style: sectionLabelStyle),
         const Gap(12),
         Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: MenuTrigger(
-              onPressed: _devices.isEmpty
-                  ? null
-                  : () => _showDevicePicker(context),
-              child: Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            onPressed: _devices.isEmpty
+                ? null
+                : () => _showDevicePicker(context),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
         ),
