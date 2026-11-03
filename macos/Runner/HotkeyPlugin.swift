@@ -20,6 +20,8 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
     private var localMonitor: Any?
 
     // Overlay
+    private let overlaySize = CGSize(width: 420, height: 90)
+    private let overlayMargin: CGFloat = 24
     private var overlayPanel: NSPanel?
     private var statusDot: NSView?
     private var transcriptionLabel: NSTextField?
@@ -30,6 +32,27 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
 
     init(channel: FlutterMethodChannel) {
         self.channel = channel
+        super.init()
+        // Display arrangement changed (external monitor plugged/unplugged, lid
+        // closed, resolution change). Screen coordinates are relative to the
+        // MAIN display, so an already placed panel gets a stale origin.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func screenParametersChanged() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let panel = self.overlayPanel, panel.isVisible else { return }
+            self.positionOverlay()
+        }
     }
 
     func startListening(result: @escaping FlutterResult) {
@@ -140,6 +163,7 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
                 self.buildOverlayPanel()
             }
             self.overlayGeneration += 1
+            self.positionOverlay()
 
             self.statusDot?.layer?.backgroundColor = NSColor.systemYellow.cgColor
             self.updateTranscriptionLabel(finalText: "", nonFinalText: "Conectando...")
@@ -202,19 +226,11 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
     }
 
     private func buildOverlayPanel() {
-        let panelWidth: CGFloat = 420
-        let panelHeight: CGFloat = 90
-        let margin: CGFloat = 24
-
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let screenFrame = screen.visibleFrame
-        let origin = NSPoint(
-            x: screenFrame.maxX - panelWidth - margin,
-            y: screenFrame.minY + margin
-        )
+        let panelWidth = overlaySize.width
+        let panelHeight = overlaySize.height
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: origin, size: CGSize(width: panelWidth, height: panelHeight)),
+            contentRect: NSRect(origin: .zero, size: overlaySize),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -256,6 +272,33 @@ class HotkeyPlugin: NSObject, FlutterPlugin {
         self.transcriptionLabel = label
 
         self.overlayPanel = panel
+    }
+
+    /// Screen the user is working on: the one under the pointer. Falls back to
+    /// the screen with the key window, then to whatever exists.
+    private func targetScreen() -> NSScreen? {
+        let mouse = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSPointInRect(mouse, $0.frame) }) {
+            return screen
+        }
+        return NSScreen.main ?? NSScreen.screens.first
+    }
+
+    /// Bottom-right corner of the visible frame of the screen in use.
+    ///
+    /// Recomputed on every show and on display-arrangement changes: screen
+    /// coordinates are relative to the MAIN display, so a panel positioned once
+    /// (e.g. on the built-in screen) keeps a stale origin after the external
+    /// monitor takes over as main — the symptom is the overlay drifting toward
+    /// the middle of the screen.
+    private func positionOverlay() {
+        guard let panel = overlayPanel, let screen = targetScreen() else { return }
+        let visible = screen.visibleFrame
+        let origin = NSPoint(
+            x: visible.maxX - panel.frame.width - overlayMargin,
+            y: visible.minY + overlayMargin
+        )
+        panel.setFrame(NSRect(origin: origin, size: panel.frame.size), display: true)
     }
 
     private func updateTranscriptionLabel(finalText: String, nonFinalText: String) {
