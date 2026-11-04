@@ -1,0 +1,59 @@
+{
+	"CallerReference": "CALLER_REF",
+	"Comment": "soniox_transcriptor web - static site (S3 + OAC)",
+	"Enabled": true,
+	"DefaultRootObject": "index.html",
+	"Origins": {
+		"Quantity": 1,
+		"Items": [
+			{
+				"Id": "s3-origin",
+				"DomainName": "BUCKET.s3.REGION.amazonaws.com",
+				"OriginPath": "",
+				"CustomHeaders": { "Quantity": 0 },
+				"OriginAccessControlId": "OAC_ID",
+				"S3OriginConfig": { "OriginAccessIdentity": "" },
+				"ConnectionAttempts": 3,
+				"ConnectionTimeout": 10,
+				"OriginShield": { "Enabled": false }
+			}
+		]
+	},
+	"DefaultCacheBehavior": {
+		"TargetOriginId": "s3-origin",
+		"ViewerProtocolPolicy": "redirect-to-https",
+		"AllowedMethods": {
+			"Quantity": 2,
+			"Items": ["GET", "HEAD"],
+			"CachedMethods": { "Quantity": 2, "Items": ["GET", "HEAD"] }
+		},
+		"Compress": true,
+		"CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+		"TrustedKeyGroups": { "Enabled": false, "Quantity": 0 }
+	},
+	"CustomErrorResponses": {
+		"Quantity": 2,
+		"Items": [
+			{
+				"ErrorCode": 403,
+				"ResponsePagePath": "/index.html",
+				"ResponseCode": "200",
+				"ErrorCachingMinTTL": 10
+			},
+			{
+				"ErrorCode": 404,
+				"ResponsePagePath": "/index.html",
+				"ResponseCode": "200",
+				"ErrorCachingMinTTL": 10
+			}
+		]
+	},
+	"PriceClass": "PriceClass_All",
+	"HttpVersion": "http2and3",
+	"IsIPV6Enabled": true,
+	"Restrictions": { "GeoRestriction": { "RestrictionType": "none", "Quantity": 0 } },
+	"ViewerCertificate": {
+		"CloudFrontDefaultCertificate": true,
+		"MinimumProtocolVersion": "TLSv1.2_2021"
+	}
+}
