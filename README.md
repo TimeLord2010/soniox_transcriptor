@@ -53,6 +53,23 @@ aparelho antigo (que instalaria e morreria sem `libflutter.so`). Todas as libs
 nativas estão alinhadas para páginas de 16 KB, exigência das versões recentes do
 Android.
 
+## Web publicado (S3 + CloudFront)
+
+URL pública: **https://d3vemsg4j3kaya.cloudfront.net** — build estático no S3
+conta 419242000325, região `sa-east-1`, servido por CloudFront com OAC (bucket
+privado; só a distribuição lê).
+
+- bucket: `soniox-transcriptor-web-419242000325`
+- distribuição: `E1COLUVKO80UG3`
+- infra criada uma única vez: `tool/setup_web_s3_infra.sh`
+- publicar: `tool/deploy_web_s3.sh` (build + upload + invalidação); `--url` só
+  imprime a URL e o status HTTP
+
+O build do Flutter não tem hash no nome dos arquivos, então nada aqui é cacheado
+como imutável: HTML e JS de boot sempre revalidam, `assets/` e `icons/` têm 5
+minutos, `canvaskit/` uma hora. Deploy no S3 é definitivo — use o túnel do ngrok
+para teste rápido.
+
 ## Web (build + túnel)
 
 ```bash
