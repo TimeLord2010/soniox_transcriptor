@@ -18,6 +18,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
@@ -55,6 +56,9 @@ class SonioxKeyboardService : InputMethodService() {
     private var dictation: DictationSession? = null
     private var foreground = false
 
+    /** Recuo inferior (px) da barra do sistema já aplicado ao root. */
+    private var insetBottomPx = 0
+
     private val handler = Handler(Looper.getMainLooper())
     private val density by lazy { resources.displayMetrics.density }
     private val isNight by lazy {
@@ -89,6 +93,8 @@ class SonioxKeyboardService : InputMethodService() {
     override fun onWindowShown() {
         super.onWindowShown()
         Log.d(TAG, "onWindowShown")
+        // A barra do sistema pode ter mudado enquanto o teclado estava oculto.
+        refreshWindowInsets()
     }
 
     override fun onCreateInputView(): View {
@@ -116,6 +122,7 @@ class SonioxKeyboardService : InputMethodService() {
         // O perfil pode ter mudado com o app aberto: relê a config a cada vez
         // que o teclado aparece, em vez de confiar no que foi lido no onCreate.
         session = KeyboardSession.load(this)
+        refreshWindowInsets()
         if (state == State.Idle) render()
     }
 
@@ -233,19 +240,64 @@ class SonioxKeyboardService : InputMethodService() {
             contentDescription = label
         }
 
-    /** Recuo inferior: a barra de navegação/gestos do sistema fica sobre a
-     *  janela do teclado em aparelhos edge-to-edge. */
+    /**
+     * Recuo inferior: a barra de navegação/gestos do sistema — onde ficam os
+     * botões "ocultar teclado" e "trocar de teclado" — é desenhada SOBRE a
+     * janela do teclado. O inset tem que ser lido no `decorView` da janela do
+     * IME: o `InputMethodService` consome os insets no caminho até a input
+     * view, então um listener no `root` recebe zero e o conteúdo fica atrás
+     * dos botões do sistema (era o defeito relatado). O listener do decor
+     * também é o único que recebe a mudança quando a barra aparece/some.
+     */
     private fun applyWindowInsets() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT_WATCH) return
-        root.setOnApplyWindowInsetsListener { view, insets ->
-            val bottom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
-            } else {
-                @Suppress("DEPRECATION") insets.systemWindowInsetBottom
-            }
-            view.setPadding(dp(12), dp(8), dp(12), dp(8) + bottom)
+        val decor = window?.window?.decorView ?: return
+        decor.setOnApplyWindowInsetsListener { _, insets ->
+            updateBottomInset(insets)
             insets
         }
+        decor.post { decor.rootWindowInsets?.let(::updateBottomInset) }
+    }
+
+    /** Relê os insets da janela (rotação, barra de navegação trocada). */
+    private fun refreshWindowInsets() {
+        val decor = window?.window?.decorView ?: return
+        decor.rootWindowInsets?.let(::updateBottomInset)
+    }
+
+    private fun updateBottomInset(insets: WindowInsets) {
+        val bottom = bottomInset(insets)
+        Log.d(TAG, "insets: recuo inferior=${bottom}px (${bottom / density}dp)")
+        if (bottom == insetBottomPx) return
+        insetBottomPx = bottom
+        root.setPadding(dp(12), dp(8), dp(12), dp(8) + bottom)
+    }
+
+    /**
+     * Altura (px) da barra do sistema na base da janela do teclado.
+     *
+     * A barra onde o sistema desenha "ocultar teclado" e "trocar de teclado" é
+     * a `navigationBars`. `systemGestures` é a área de exclusão de gesto, maior
+     * que a barra: só serve de reserva quando a barra se declara com altura
+     * zero — que é justamente o caso em que o conteúdo ficaria atrás dos
+     * botões do sistema.
+     */
+    private fun bottomInset(insets: WindowInsets): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            @Suppress("DEPRECATION")
+            return insets.systemWindowInsetBottom
+        }
+        val bars = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+        val gestures = insets.getInsets(WindowInsets.Type.systemGestures()).bottom
+        Log.d(TAG, "insets: navigationBars=${bars}px systemGestures=${gestures}px")
+        if (bars > 0) return bars
+        if (gestures > 0) return gestures
+        // Aparelho que não reporta inset nenhum mas mantém a barra desenhada
+        // sobre a janela: reserva a altura da barra pelo recurso do sistema —
+        // espaço a mais é cosmético, botão escondido é inutilizável.
+        val resId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val fallback = if (resId > 0) resources.getDimensionPixelSize(resId) else 0
+        Log.w(TAG, "insets: barra sem inset reportado, usando recurso=${fallback}px")
+        return fallback
     }
 
     // MARK: Ditado

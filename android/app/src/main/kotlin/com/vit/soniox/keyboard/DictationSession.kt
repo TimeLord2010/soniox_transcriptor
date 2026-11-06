@@ -240,7 +240,10 @@ class DictationSession(
         for (index in 0 until tokens.length()) {
             val token = tokens.optJSONObject(index) ?: continue
             val word = token.optString("text", "")
-            if (word.isEmpty() || word == ENDPOINT_TOKEN) continue
+            // Marcadores de controle do protocolo (`<end>` de fim de fala,
+            // `<fin>` que fecha o `finalize`) não são conteúdo: o `<fin>` era
+            // digitado no campo ao tocar em "parar".
+            if (word.isEmpty() || CONTROL_TOKEN.matches(word)) continue
             val isFinal = token.optBoolean("is_final", false)
             val status = token.optString("translation_status", "")
 
@@ -275,7 +278,8 @@ class DictationSession(
         private const val CHUNK_MS = 100
         private const val CHUNK_BYTES = SAMPLE_RATE * 2 * CHUNK_MS / 1000
         private const val FINALIZE = """{"type":"finalize"}"""
-        private const val ENDPOINT_TOKEN = "<end>"
+        /** Marcadores do protocolo (`<end>`, `<fin>`) — nunca texto do ditado. */
+        private val CONTROL_TOKEN = Regex("^<[a-z0-9_]+>$")
         private const val FINALIZE_GRACE_MS = 1500L
         private const val NORMAL_CLOSURE = 1000
     }
