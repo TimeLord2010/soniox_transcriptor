@@ -19,6 +19,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
@@ -61,10 +62,11 @@ class SonioxKeyboardService : InputMethodService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val density by lazy { resources.displayMetrics.density }
-    private val isNight by lazy {
-        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+
+    /** Lido a cada uso, não em cache: o tema pode mudar com o teclado aberto. */
+    private val isNight: Boolean
+        get() = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
-    }
 
     // MARK: Ciclo do teclado
 
@@ -100,6 +102,7 @@ class SonioxKeyboardService : InputMethodService() {
     override fun onCreateInputView(): View {
         session = KeyboardSession.load(this)
         Log.d(TAG, "onCreateInputView: chave=${session.hasApiKey} idiomas=${session.languages}")
+        applySystemBarAppearance()
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -123,6 +126,7 @@ class SonioxKeyboardService : InputMethodService() {
         // que o teclado aparece, em vez de confiar no que foi lido no onCreate.
         session = KeyboardSession.load(this)
         refreshWindowInsets()
+        applySystemBarAppearance()
         if (state == State.Idle) render()
     }
 
@@ -143,6 +147,16 @@ class SonioxKeyboardService : InputMethodService() {
         dictation = null
         stopForegroundQuietly()
         super.onDestroy()
+    }
+
+    /** Tema claro/escuro trocado com o teclado aberto: reaplica cor dos botões do sistema. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applySystemBarAppearance()
+        if (this::root.isInitialized) {
+            root.setBackgroundColor(if (isNight) NIGHT_BACKGROUND else LIGHT_BACKGROUND)
+            render()
+        }
     }
 
     // MARK: Views
@@ -239,6 +253,39 @@ class SonioxKeyboardService : InputMethodService() {
             isClickable = true
             contentDescription = label
         }
+
+    /**
+     * Cor dos botões que o SISTEMA desenha na faixa inferior do teclado
+     * ("ocultar teclado" / "trocar de teclado"). Quem manda neles é a janela do
+     * IME, pela aparência da barra de navegação: com fundo claro o sistema
+     * desenha ícone BRANCO por padrão e ele some. Pedir
+     * `APPEARANCE_LIGHT_NAVIGATION_BARS` = ícones escuros; no tema escuro os
+     * ícones ficam brancos (sem essa flag). Também pinta a faixa com a cor do
+     * teclado e desliga o contraste automático, que injeta véu escuro sobre
+     * fundo claro.
+     */
+    private fun applySystemBarAppearance() {
+        val win = window?.window ?: return
+        val background = if (isNight) NIGHT_BACKGROUND else LIGHT_BACKGROUND
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS or
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            win.insetsController?.setSystemBarsAppearance(if (isNight) 0 else mask, mask)
+        } else {
+            @Suppress("DEPRECATION")
+            win.decorView.systemUiVisibility = if (isNight) {
+                0
+            } else {
+                win.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+        }
+        @Suppress("DEPRECATION")
+        win.navigationBarColor = background
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            win.isNavigationBarContrastEnforced = false
+        }
+        Log.d(TAG, "barra do sistema: tema=${if (isNight) "escuro" else "claro"} cor=$background")
+    }
 
     /**
      * Recuo inferior: a barra de navegação/gestos do sistema — onde ficam os
