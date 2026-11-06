@@ -255,13 +255,18 @@ class SonioxKeyboardService : InputMethodService() {
             updateBottomInset(insets)
             insets
         }
-        decor.post { decor.rootWindowInsets?.let(::updateBottomInset) }
+        // Leitura inicial: os insets da janela chegam depois do primeiro layout,
+        // então insiste algumas vezes em vez de confiar numa leitura só.
+        listOf(0L, 120L, 400L).forEach { delay ->
+            decor.postDelayed({ decor.rootWindowInsets?.let(::updateBottomInset) }, delay)
+        }
     }
 
     /** Relê os insets da janela (rotação, barra de navegação trocada). */
     private fun refreshWindowInsets() {
         val decor = window?.window?.decorView ?: return
         decor.rootWindowInsets?.let(::updateBottomInset)
+        decor.postDelayed({ decor.rootWindowInsets?.let(::updateBottomInset) }, 120)
     }
 
     private fun updateBottomInset(insets: WindowInsets) {
@@ -282,22 +287,38 @@ class SonioxKeyboardService : InputMethodService() {
      * botões do sistema.
      */
     private fun bottomInset(insets: WindowInsets): Int {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        val measured = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             @Suppress("DEPRECATION")
-            return insets.systemWindowInsetBottom
+            insets.systemWindowInsetBottom
+        } else {
+            val bars = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            val gestures = insets.getInsets(WindowInsets.Type.systemGestures()).bottom
+            val tappable = insets.getInsets(WindowInsets.Type.tappableElement()).bottom
+            val mandatory = insets.getInsets(WindowInsets.Type.mandatorySystemGestures()).bottom
+            Log.d(
+                TAG,
+                "insets: navigationBars=$bars systemGestures=$gestures " +
+                    "tappable=$tappable mandatory=$mandatory",
+            )
+            maxOf(bars, gestures, tappable, mandatory)
         }
-        val bars = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-        val gestures = insets.getInsets(WindowInsets.Type.systemGestures()).bottom
-        Log.d(TAG, "insets: navigationBars=${bars}px systemGestures=${gestures}px")
-        if (bars > 0) return bars
-        if (gestures > 0) return gestures
-        // Aparelho que não reporta inset nenhum mas mantém a barra desenhada
-        // sobre a janela: reserva a altura da barra pelo recurso do sistema —
-        // espaço a mais é cosmético, botão escondido é inutilizável.
+        // A faixa em que o sistema desenha "ocultar teclado" e "trocar de teclado"
+        // é a barra de navegação. Na janela de um InputMethodService o inset dela
+        // chega MENOR que a faixa real (ou zero) — reservar só o medido deixou os
+        // botões do sistema sobre os nossos no aparelho do dono. O recurso
+        // `navigation_bar_height` é o PISO, não o último recurso: espaço a mais é
+        // cosmético, botão escondido é inutilizável.
+        val strip = navBarStripHeight()
+        Log.d(TAG, "insets: medido=${measured}px piso=${strip}px -> reserva=${maxOf(measured, strip)}px")
+        return maxOf(measured, strip)
+    }
+
+    private fun navBarStripHeight(): Int {
         val resId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        val fallback = if (resId > 0) resources.getDimensionPixelSize(resId) else 0
-        Log.w(TAG, "insets: barra sem inset reportado, usando recurso=${fallback}px")
-        return fallback
+        if (resId > 0) return resources.getDimensionPixelSize(resId)
+        // OEM que não expõe o recurso: 48 dp é a altura padrão da barra.
+        Log.w(TAG, "insets: recurso navigation_bar_height ausente, usando 48dp")
+        return dp(48)
     }
 
     // MARK: Ditado
