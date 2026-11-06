@@ -105,3 +105,45 @@ class _TranslationTargetMenu extends ConsumerWidget {
         : language.label;
   }
 }
+
+/// Linha do grupo Captura na aba Início: mostra se a tradução está ligada (e
+/// para qual língua) e abre o controle num painel.
+class TranslationRow extends ConsumerWidget {
+  const TranslationRow({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final target = ref.watch(translationProvider);
+    return SettingsRow(
+      key: const ValueKey('home-row-translation'),
+      label: 'Tradução',
+      value: target == null ? 'desligada' : 'para ${target.label}',
+      onTap: () => showSettingsPanel(
+        context,
+        title: 'Tradução',
+        child: const _TranslationPanel(),
+      ),
+    );
+  }
+}
+
+/// Conteúdo do painel da tradução: a mesma caixa de marcar e o mesmo seletor
+/// de alvo das configurações, com o aviso de quando a escolha passa a valer.
+class _TranslationPanel extends ConsumerWidget {
+  const _TranslationPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: const [
+        TranslationSettings(),
+        Gap(10),
+        Text(
+          'Vale a partir da próxima captura.',
+          style: TextStyle(fontSize: 12, color: CupertinoColors.tertiaryLabel),
+        ),
+      ],
+    );
+  }
+}

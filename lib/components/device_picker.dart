@@ -57,12 +57,24 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
             onPressed: _devices.isEmpty
                 ? null
                 : () => _showDevicePicker(context),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            // O CupertinoButton centraliza o filho: sem o Row alinhado ao fim o
+            // valor aparece no meio da linha em vez de encostar na direita.
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

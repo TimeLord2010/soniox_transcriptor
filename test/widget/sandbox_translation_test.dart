@@ -136,11 +136,16 @@ void main() {
   ) async {
     await openPage(tester);
 
-    // Início já vem aberto: o controle fica junto das línguas de entrada.
+    // Início já vem aberto: a tradução é uma linha do grupo Captura e o
+    // controle abre num painel.
+    await tester.tap(find.byKey(const ValueKey('home-row-translation')));
+    await tester.pumpAndSettle();
     expect(find.text('Traduzir'), findsOneWidget);
     await tester.tap(find.text('Traduzir'));
     await tester.pump();
     expect(find.text('Língua alvo: Inglês'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-panel-close')));
+    await tester.pumpAndSettle();
 
     await openSandboxTab(tester);
 

@@ -4,19 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
-import 'package:soniox_transcriptor/components/api_key_setter.dart';
-import 'package:soniox_transcriptor/components/android_keyboard_setter.dart';
-import 'package:soniox_transcriptor/components/context_text_setter.dart';
-import 'package:soniox_transcriptor/components/device_picker.dart';
-import 'package:soniox_transcriptor/components/language_picker.dart';
-import 'package:soniox_transcriptor/components/model_picker.dart';
-import 'package:soniox_transcriptor/components/profile_selector.dart';
 import 'package:soniox_transcriptor/components/record_button.dart';
+import 'package:soniox_transcriptor/components/pages/home_page.dart';
 import 'package:soniox_transcriptor/components/sandbox_settings.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
-import 'package:soniox_transcriptor/components/terms_picker.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
-import 'package:soniox_transcriptor/components/translation_settings.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/browser_viewport.dart';
@@ -251,38 +243,10 @@ class _MainPageState extends ConsumerState<MainPage>
 
   Widget _content() {
     return switch (currentPage) {
-      _homeTab => _homePage(),
+      _homeTab => HomePage(recorder: recorder),
       _sandboxTab => _sandboxPage(),
       _ => const TranscriptionsHistory(),
     };
-  }
-
-  Widget _homePage() {
-    // Keying the settings by profile remounts them on switch, so each one
-    // reloads its values.
-    final profileId = ref.watch(activeProfileIdProvider);
-    final hasApiKey = ref.watch(apiKeyProvider).isNotEmpty;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: kSectionSpacing,
-        children: [
-          ProfileSelector(),
-          if (!hasApiKey) _missingApiKeyNotice(),
-          ApiKeySetter(key: ValueKey('api-key-$profileId')),
-          const ModelPicker(),
-          DevicePicker(key: ValueKey('device-$profileId'), recorder: recorder),
-          TermsPicker(),
-          LanguagePicker(),
-          TranslationSettings(key: ValueKey('home-translation')),
-          ContextTextSetter(key: ValueKey('context-$profileId')),
-          // Só no Android: nos outros sistemas o teclado não existe, e bloco de
-          // recurso morto na tela é ruído.
-          if (PlatformSupport.isAndroid) const AndroidKeyboardSetter(),
-        ],
-      ),
-    );
   }
 
   /// A aba da sandbox: captura comandada pelo botão (sempre visível, nas duas
@@ -377,35 +341,6 @@ class _MainPageState extends ConsumerState<MainPage>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _missingApiKeyNotice() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemOrange.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            CupertinoIcons.exclamationmark_triangle_fill,
-            color: CupertinoColors.systemOrange,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              PlatformSupport.supportsGlobalHotkey
-                  ? 'Este perfil não tem chave Soniox. O atalho não vai gravar '
-                        'até que uma chave seja definida.'
-                  : 'Este perfil não tem chave Soniox. Gravar não vai '
-                        'funcionar até que uma chave seja definida.',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

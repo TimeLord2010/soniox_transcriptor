@@ -16,8 +16,6 @@ class ModelPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final models = ref.watch(sonioxModelsProvider);
-    final selected = ref.watch(selectedModelProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -29,7 +27,7 @@ class ModelPicker extends ConsumerWidget {
           // Elástico: dentro do popup de ajustes a largura é curta.
           child: Flexible(
             child: Text(
-              _label(ref, selected, models.models),
+              modelValueLabel(ref),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
@@ -39,12 +37,30 @@ class ModelPicker extends ConsumerWidget {
       ],
     );
   }
+}
 
-  /// Nome do modelo em uso; aponta o automático quando a escolha é `null`.
-  String _label(WidgetRef ref, String? selected, List<SonioxModel> models) {
-    final id = ref.watch(resolvedModelIdProvider);
-    final name = _modelById(models, id)?.name ?? id;
-    return selected == null ? '$name (automático)' : name;
+/// Nome do modelo em uso; aponta o automático quando a escolha é `null`.
+String modelValueLabel(WidgetRef ref) {
+  final models = ref.watch(sonioxModelsProvider).models;
+  final selected = ref.watch(selectedModelProvider);
+  final id = ref.watch(resolvedModelIdProvider);
+  final name = _modelById(models, id)?.name ?? id;
+  return selected == null ? '$name (automático)' : name;
+}
+
+/// Linha do grupo Captura na aba Início: mostra o modelo em uso e abre a mesma
+/// lista do seletor no popup.
+class ModelRow extends ConsumerWidget {
+  const ModelRow({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SettingsRow(
+      key: const ValueKey('home-row-model'),
+      label: 'Modelo',
+      value: modelValueLabel(ref),
+      onTap: () => showCupertinoMenuPopup(context, const _ModelsMenu()),
+    );
   }
 }
 
