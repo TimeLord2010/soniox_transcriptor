@@ -10,9 +10,11 @@ void main() {
     Language? translationTarget,
     bool diarization = false,
     List<String> languages = const ['pt'],
+    String model = 'stt-rt-v6',
   }) {
     return buildSessionConfig(
       apiKey: 'chave-de-teste',
+      model: model,
       languages: languages,
       speakerDiarization: diarization,
       translationTarget: translationTarget,
@@ -21,8 +23,11 @@ void main() {
     ).toMap;
   }
 
-  test('usa o modelo de tradução do Soniox', () {
-    expect(config()['model'], 'stt-rt-v5');
+  // O modelo não é mais constante do app: quem manda no config é o escolhido
+  // no perfil (ou o automático resolvido pela lista da API).
+  test('manda o modelo recebido, não um padrão do código', () {
+    expect(config()['model'], 'stt-rt-v6');
+    expect(config(model: 'stt-rt-v5')['model'], 'stt-rt-v5');
   });
 
   test('tradução desligada não manda bloco translation', () {

@@ -19,6 +19,8 @@ data class KeyboardSession(
     val contextText: String,
     val terms: List<String>,
     val translationTarget: String?,
+    /** Modelo escolhido no app; blob antigo (sem o campo) cai no [MODEL]. */
+    val model: String,
 ) {
     /** Sem chave não há sessão: o teclado só pode avisar o usuário. */
     val hasApiKey: Boolean get() = apiKey.isNotBlank()
@@ -35,7 +37,7 @@ data class KeyboardSession(
     fun toSonioxConfig(): JSONObject {
         val config = JSONObject()
             .put("api_key", apiKey)
-            .put("model", MODEL)
+            .put("model", model)
             .put("enable_speaker_diarization", false)
             .put("language_hints", JSONArray(languages))
             .put("language_hints_strict", languages.isNotEmpty())
@@ -65,6 +67,7 @@ data class KeyboardSession(
     }
 
     companion object {
+        /** Só para blob antigo/sem campo; o app manda o modelo do perfil. */
         const val MODEL = "stt-rt-v5"
         const val AUDIO_FORMAT = "pcm_s16le"
         const val SAMPLE_RATE = 16000
@@ -82,7 +85,7 @@ data class KeyboardSession(
             return fromJson(raw)
         }
 
-        fun empty() = KeyboardSession("", emptyList(), "", emptyList(), null)
+        fun empty() = KeyboardSession("", emptyList(), "", emptyList(), null, MODEL)
 
         fun fromJson(raw: String): KeyboardSession = try {
             val object0 = JSONObject(raw)
@@ -96,6 +99,8 @@ data class KeyboardSession(
                 } else {
                     object0.optString("translation_target", "").ifBlank { null }
                 },
+                // Blob da versão 1 não tem modelo: o teclado abre com o padrão.
+                model = object0.optString("model", "").ifBlank { MODEL },
             )
         } catch (e: Exception) {
             // Blob corrompido (versão antiga, escrita interrompida) equivale a
