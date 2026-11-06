@@ -11,6 +11,7 @@ void main() {
   test('blob publicado tem exatamente as chaves do contrato', () {
     final map = KeyboardSession.toMap(
       apiKey: 'chave',
+      model: 'stt-rt-v6',
       languages: {Language.pt, Language.en},
       contextText: 'reunião sobre o app',
       terms: ['Soniox', 'LEIA'],
@@ -18,8 +19,9 @@ void main() {
     );
 
     expect(map, {
-      'version': 1,
+      'version': 2,
       'api_key': 'chave',
+      'model': 'stt-rt-v6',
       'languages': ['pt', 'en'],
       'context_text': 'reunião sobre o app',
       'terms': ['Soniox', 'LEIA'],
@@ -30,6 +32,7 @@ void main() {
   test('tradução desligada publica null explícito', () {
     final map = KeyboardSession.toMap(
       apiKey: '',
+      model: 'stt-rt-v6',
       languages: {Language.pt},
       contextText: '',
       terms: [],
@@ -45,6 +48,7 @@ void main() {
   test('blob sobrevive ao encode/decode que o teclado faz', () {
     final map = KeyboardSession.toMap(
       apiKey: 'k',
+      model: 'stt-rt-v6',
       languages: {Language.pt},
       contextText: 'ctx',
       terms: ['termo'],

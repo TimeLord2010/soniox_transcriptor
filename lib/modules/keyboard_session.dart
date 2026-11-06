@@ -22,12 +22,14 @@ class KeyboardSession {
   /// então o teclado procura `flutter.keyboard.session`.
   static const storageKey = 'keyboard.session';
 
-  /// `1` — o teclado recusa blob de versão que não conhece (campo novo sem
-  /// quebra silenciosa do lado dele).
-  static const version = 1;
+  /// `2` — acrescentou `model`. O teclado recusa blob de versão que não
+  /// conhece (campo novo sem quebra silenciosa do lado dele) e aceita a `1`
+  /// ainda, preenchendo o modelo padrão.
+  static const version = 2;
 
   static Map<String, dynamic> toMap({
     required String apiKey,
+    required String model,
     required Set<Language> languages,
     required String contextText,
     required List<String> terms,
@@ -36,6 +38,8 @@ class KeyboardSession {
     return {
       'version': version,
       'api_key': apiKey,
+      // Modelo escolhido no perfil (ou o automático resolvido pelo app).
+      'model': model,
       'languages': languages.map((language) => language.name).toList(),
       'context_text': contextText,
       'terms': terms,
@@ -48,6 +52,7 @@ class KeyboardSession {
   /// mostrar "sem chave"), mas fica no log.
   static Future<void> publish({
     required String apiKey,
+    required String model,
     required Set<Language> languages,
     required String contextText,
     required List<String> terms,
@@ -58,6 +63,7 @@ class KeyboardSession {
     final payload = jsonEncode(
       toMap(
         apiKey: apiKey,
+        model: model,
         languages: languages,
         contextText: contextText,
         terms: terms,

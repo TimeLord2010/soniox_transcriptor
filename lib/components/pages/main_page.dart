@@ -9,6 +9,7 @@ import 'package:soniox_transcriptor/components/android_keyboard_setter.dart';
 import 'package:soniox_transcriptor/components/context_text_setter.dart';
 import 'package:soniox_transcriptor/components/device_picker.dart';
 import 'package:soniox_transcriptor/components/language_picker.dart';
+import 'package:soniox_transcriptor/components/model_picker.dart';
 import 'package:soniox_transcriptor/components/profile_selector.dart';
 import 'package:soniox_transcriptor/components/record_button.dart';
 import 'package:soniox_transcriptor/components/sandbox_settings.dart';
@@ -29,6 +30,7 @@ import 'package:soniox_transcriptor/protocols/show_toast.dart';
 import 'package:soniox_transcriptor/providers/api_key_provider.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
 import 'package:soniox_transcriptor/providers/history_provider.dart';
+import 'package:soniox_transcriptor/providers/models_providers.dart';
 import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/hotkey_listener.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
@@ -174,6 +176,11 @@ class _MainPageState extends ConsumerState<MainPage>
       _scheduleSessionRebuild();
       _notifyPendingSetting();
     });
+    // O modelo também é parâmetro de sessão: trocar no seletor reconstrói a
+    // conexão (vale na próxima captura). A primeira resposta da lista de
+    // modelos chega depois da abertura do app e cai neste mesmo caminho.
+    ref.listen(resolvedModelIdProvider, (_, _) => _scheduleSessionRebuild());
+    ref.listen(selectedModelProvider, (_, _) => _notifyPendingSetting());
     // Idem para a tradução: o alvo entra no config do WebSocket e não pode
     // trocar no meio de uma captura.
     ref.listen(translationProvider, (_, _) {
@@ -188,6 +195,7 @@ class _MainPageState extends ConsumerState<MainPage>
     ref.listen(languagesProvider, (_, _) => _publishKeyboardSession());
     ref.listen(termsProvider, (_, _) => _publishKeyboardSession());
     ref.listen(translationProvider, (_, _) => _publishKeyboardSession());
+    ref.listen(resolvedModelIdProvider, (_, _) => _publishKeyboardSession());
     // No navegador a barra do Safari cobre o rodapé do layout viewport (o
     // engine dimensiona por documentElement.client* e ignora o visualViewport
     // fora de edição de texto). O SafeArea não vê isso no web — o recuo vem do
@@ -263,6 +271,7 @@ class _MainPageState extends ConsumerState<MainPage>
           ProfileSelector(),
           if (!hasApiKey) _missingApiKeyNotice(),
           ApiKeySetter(key: ValueKey('api-key-$profileId')),
+          const ModelPicker(),
           DevicePicker(key: ValueKey('device-$profileId'), recorder: recorder),
           TermsPicker(),
           LanguagePicker(),
@@ -607,6 +616,7 @@ class _MainPageState extends ConsumerState<MainPage>
   /// — chave, perfil, idiomas, termos, contexto e tradução.
   void _publishKeyboardSession() {
     KeyboardSession.publish(
+      model: ref.read(resolvedModelIdProvider),
       apiKey: ref.read(apiKeyProvider),
       languages: ref.read(languagesProvider),
       contextText: ref.read(contextProvider),
@@ -642,6 +652,7 @@ class _MainPageState extends ConsumerState<MainPage>
     // Updating state
     debugPrint('Creating soniox websocket with api key');
     final sessionConfig = buildSessionConfig(
+      model: ref.read(resolvedModelIdProvider),
       apiKey: apiKey,
       languages: ref.read(languagesProvider).map((x) => x.name).toList(),
       speakerDiarization: ref.read(diarizationProvider),

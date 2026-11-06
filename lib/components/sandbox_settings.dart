@@ -2,12 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:soniox_transcriptor/components/checkbox_row.dart';
+import 'package:soniox_transcriptor/components/model_picker.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/translation_settings.dart';
 import 'package:soniox_transcriptor/providers/context_providers.dart';
 
-/// Ajustes da captura da sandbox (diarização e tradução) num popup só, aberto
-/// pelo ícone de ajustes ao lado do botão de gravar.
+/// Ajustes da captura da sandbox (modelo, diarização e tradução) num popup só,
+/// aberto pelo ícone de ajustes ao lado do botão de gravar.
 ///
 /// Antes cada opção tinha sua linha na aba e as duas empurravam as caixas de
 /// texto para baixo. Os controles continuam os mesmos (mesmos provedores, mesma
@@ -34,6 +35,8 @@ class SandboxSettings extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const ModelPicker(),
+              const Gap(kLabelSpacing),
               CheckboxRow(
                 key: const ValueKey('sandbox-diarization'),
                 label: 'Diarização',
