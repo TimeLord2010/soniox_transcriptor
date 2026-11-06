@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:vit_soniox/vit_soniox.dart';
 
+import 'control_tokens.dart';
+
 /// Uma mensagem do WebSocket de uma sessão com tradução ligada, já separada nas
 /// duas metades que o Soniox manda no mesmo stream.
 ///
@@ -63,8 +65,9 @@ class TranslatedEvent {
       final map = item.cast<String, dynamic>();
       final text = map['text'];
       if (text is! String || text.isEmpty) continue;
-      // Marcador de fim de fala, não é conteúdo (nem para traduzir).
-      if (text == '<end>') continue;
+      // Marcador do protocolo (`<end>`, `<fin>`): não é conteúdo, nem para
+      // traduzir.
+      if (isControlToken(text)) continue;
 
       final status = map['translation_status'];
       final isTranslation = status == 'translation';

@@ -19,6 +19,7 @@ import 'package:soniox_transcriptor/components/translation_settings.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/browser_viewport.dart';
+import 'package:soniox_transcriptor/modules/control_tokens.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
 import 'package:soniox_transcriptor/modules/keyboard_session.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
@@ -771,7 +772,8 @@ class _MainPageState extends ConsumerState<MainPage>
   void _onTranscription(SonioxTranscription transcription) {
     final diarized = _diarized;
     if (diarized == null) {
-      _buffer.write(transcription.finalText);
+      // O pacote entrega o texto concatenado, marcadores incluídos.
+      _buffer.write(withoutControlTokens(transcription.finalText));
     } else {
       _buffer.write(
         diarized.take(
@@ -782,7 +784,7 @@ class _MainPageState extends ConsumerState<MainPage>
         ),
       );
     }
-    _nonFinal = transcription.nonFinalText;
+    _nonFinal = withoutControlTokens(transcription.nonFinalText);
     _showLiveText();
   }
 

@@ -1,5 +1,7 @@
 import 'package:vit_soniox/vit_soniox.dart';
 
+import 'control_tokens.dart';
+
 /// Monta o texto final com o falante na frente de cada bloco, para a sessão
 /// aberta com diarização ligada.
 ///
@@ -27,8 +29,8 @@ class DiarizedTextBuilder {
     final out = StringBuffer();
     var hasText = followsText;
     for (final token in tokens) {
-      // Marcador de fim de fala: não é conteúdo.
-      if (token.isEndpoint) continue;
+      // Marcador do protocolo (`<end>`, `<fin>`): não é conteúdo.
+      if (token.isEndpoint || isControlToken(token.text)) continue;
       final speaker = token.speaker;
       if (speaker != null && speaker != _speaker) {
         _speaker = speaker;
