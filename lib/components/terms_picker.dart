@@ -7,7 +7,10 @@ import 'package:soniox_transcriptor/providers/context_providers.dart';
 import 'styles/ui.dart';
 
 class TermsPicker extends ConsumerStatefulWidget {
-  const TermsPicker({super.key});
+  const TermsPicker({super.key, this.showLabel = true});
+
+  /// Rótulo de seção. Falso dentro de um painel, onde o título já o diz.
+  final bool showLabel;
 
   @override
   ConsumerState<TermsPicker> createState() => _TermsPickerState();
@@ -28,8 +31,10 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Termos', style: sectionLabelStyle),
-        const Gap(kLabelSpacing),
+        if (widget.showLabel) ...const [
+          Text('Termos', style: sectionLabelStyle),
+          Gap(kLabelSpacing),
+        ],
         CupertinoTextField(
           controller: _controller,
           placeholder: 'Adicionar termo e pressionar Enter',
@@ -62,6 +67,32 @@ class _TermsPickerState extends ConsumerState<TermsPicker> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Linha do grupo Reconhecimento na aba Início: quantos termos estão salvos e
+/// o campo de adicionar/remover num painel.
+class TermsRow extends ConsumerWidget {
+  const TermsRow({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final terms = ref.watch(termsProvider);
+    final value = switch (terms.length) {
+      0 => 'nenhum',
+      1 => '1 termo',
+      final n => '$n termos',
+    };
+    return SettingsRow(
+      key: const ValueKey('home-row-terms'),
+      label: 'Termos',
+      value: value,
+      onTap: () => showSettingsPanel(
+        context,
+        title: 'Termos',
+        child: const TermsPicker(showLabel: false),
+      ),
     );
   }
 }

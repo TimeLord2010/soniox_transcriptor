@@ -44,6 +44,30 @@ class LanguagePicker extends ConsumerWidget {
   }
 }
 
+/// Línguas de entrada em uso, do jeito que a linha da Início mostra.
+String languageValueLabel(Set<Language> langs) {
+  if (langs.isEmpty) return 'nenhuma';
+  return langs.map((x) => x.label).join(', ');
+}
+
+/// Linha do grupo Captura na aba Início: mostra as línguas de entrada e abre a
+/// mesma lista de marcar do seletor.
+class LanguageRow extends ConsumerWidget {
+  const LanguageRow({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final langs = ref.watch(languagesProvider);
+    return SettingsRow(
+      key: const ValueKey('home-row-languages'),
+      label: 'Línguas',
+      value: languageValueLabel(langs),
+      valueColor: langs.isEmpty ? CupertinoColors.systemOrange : null,
+      onTap: () => showCupertinoMenuPopup(context, const _LanguagesMenu()),
+    );
+  }
+}
+
 /// Lista de línguas no popup. Diferente de um menu comum, marcar uma língua
 /// não fecha o popup: a seleção é múltipla.
 class _LanguagesMenu extends ConsumerWidget {

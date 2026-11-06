@@ -14,7 +14,19 @@ class KeyboardStatus {
   final bool selected;
 
   static const unknown = KeyboardStatus(enabled: false, selected: false);
+
+  /// Resumo em uma linha, para a linha da aba Início.
+  String get shortLabel {
+    if (selected) return 'em uso';
+    if (enabled) return 'habilitado, não selecionado';
+    return 'desligado';
+  }
 }
+
+/// Canal nativo do teclado: o status mora no sistema (`Settings.Secure`), lido
+/// pela Activity. Duas telas consultam (a linha da Início e o bloco do painel),
+/// então o canal é único.
+const _keyboardChannel = MethodChannel('soniox/keyboard');
 
 /// Seção "Teclado Android" na tela Início: liga o teclado no sistema e mostra
 /// por que ele ainda não está em uso.
@@ -22,7 +34,10 @@ class KeyboardStatus {
 /// Só aparece no Android — no macOS e no web o teclado não existe, e um bloco
 /// morto na tela é ruído (o app não tem bloco de recurso por plataforma).
 class AndroidKeyboardSetter extends StatefulWidget {
-  const AndroidKeyboardSetter({super.key});
+  const AndroidKeyboardSetter({super.key, this.showLabel = true});
+
+  /// Rótulo de bloco. Falso dentro do painel, onde o título já o diz.
+  final bool showLabel;
 
   @override
   State<AndroidKeyboardSetter> createState() => _AndroidKeyboardSetterState();
@@ -30,8 +45,6 @@ class AndroidKeyboardSetter extends StatefulWidget {
 
 class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
     with WidgetsBindingObserver {
-  static const _channel = MethodChannel('soniox/keyboard');
-
   KeyboardStatus _status = KeyboardStatus.unknown;
   bool _busy = true;
 
@@ -57,7 +70,9 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
 
   Future<void> _refresh() async {
     try {
-      final result = await _channel.invokeMapMethod<String, dynamic>('status');
+      final result = await _keyboardChannel.invokeMapMethod<String, dynamic>(
+        'status',
+      );
       if (!mounted) return;
       setState(() {
         _status = KeyboardStatus(
@@ -80,11 +95,11 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
   }
 
   Future<void> _openSettings() async {
-    await _channel.invokeMethod<void>('openSettings');
+    await _keyboardChannel.invokeMethod<void>('openSettings');
   }
 
   Future<void> _showPicker() async {
-    await _channel.invokeMethod<void>('showPicker');
+    await _keyboardChannel.invokeMethod<void>('showPicker');
     // O seletor abre sobre o app; quando fecha, o estado pode ter mudado.
     await _refresh();
   }
@@ -94,8 +109,10 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Teclado Android', style: sectionLabelStyle),
-        const Gap(kLabelSpacing),
+        if (widget.showLabel) ...const [
+          Text('Teclado Android', style: sectionLabelStyle),
+          Gap(kLabelSpacing),
+        ],
         Container(
           padding: const EdgeInsets.all(12),
           decoration: fieldDecoration(),
@@ -194,6 +211,85 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
           color: filled ? CupertinoColors.white : CupertinoColors.label,
         ),
       ),
+    );
+  }
+}
+
+/// Linha do grupo Sistema na aba Início (só Android): o estado do teclado de
+/// ditado no sistema. O bloco inteiro (ativar/escolher teclado e a explicação)
+/// vive no painel — na tela ele é só mais uma linha, como os ajustes de sessão.
+class AndroidKeyboardRow extends StatefulWidget {
+  const AndroidKeyboardRow({super.key});
+
+  @override
+  State<AndroidKeyboardRow> createState() => _AndroidKeyboardRowState();
+}
+
+class _AndroidKeyboardRowState extends State<AndroidKeyboardRow>
+    with WidgetsBindingObserver {
+  KeyboardStatus _status = KeyboardStatus.unknown;
+  bool _busy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Volta das configurações do sistema: relê o estado em vez de mentir.
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final result = await _keyboardChannel.invokeMapMethod<String, dynamic>(
+        'status',
+      );
+      if (!mounted) return;
+      setState(() {
+        _status = KeyboardStatus(
+          enabled: result?['enabled'] == true,
+          selected: result?['selected'] == true,
+        );
+        _busy = false;
+      });
+    } on PlatformException catch (e) {
+      debugPrint('[AndroidKeyboardRow] status falhou: $e');
+      if (!mounted) return;
+      setState(() => _busy = false);
+    } on MissingPluginException catch (e) {
+      debugPrint('[AndroidKeyboardRow] canal ausente: $e');
+      if (!mounted) return;
+      setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsRow(
+      key: const ValueKey('home-row-android-keyboard'),
+      label: 'Teclado',
+      value: _busy ? 'verificando…' : _status.shortLabel,
+      valueColor: _status.selected ? CupertinoColors.activeGreen : null,
+      onTap: () async {
+        await showSettingsPanel(
+          context,
+          title: 'Teclado Android',
+          child: const AndroidKeyboardSetter(showLabel: false),
+        );
+        // O seletor de teclado do sistema abre sobre o painel; quando ele fecha,
+        // o estado pode ter mudado.
+        _refresh();
+      },
     );
   }
 }
