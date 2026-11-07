@@ -29,11 +29,6 @@ dependencies:
   path: ^1.8.3
 
 dependency_overrides:
-  # 1.0.2 (parse de token traduzido, sem `confidence`/timestamps) ainda não está
-  # no pub.dev: o app usa o clone local até o `dart pub publish` do vit_soniox.
-  # Depois disso, apagar este override e voltar ao pacote do registry.
-  vit_soniox:
-    path: /Users/vini/projects/vit/vit_soniox
   # Hardware test of upstream record (branch fix/macos-keep-selected-input).
   record:
     path: /Users/vini/projects/vit/record/record

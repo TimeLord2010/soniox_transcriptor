@@ -601,9 +601,10 @@ packages:
   vit_soniox:
     dependency: "direct main"
     description:
-      path: "/Users/vini/projects/vit/vit_soniox"
-      relative: false
-    source: path
+      name: vit_soniox
+      sha256: e885d9e84e394ff75fec673f6e4e51fa21fd4797ff1a2b51dd2d7985b6a237cd
+      url: "https://pub.dev"
+    source: hosted
     version: "2.0.0"
   vm_service:
     dependency: transitive
