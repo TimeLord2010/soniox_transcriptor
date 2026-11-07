@@ -28,7 +28,8 @@ class KeyboardSessionTest {
     @Test
     fun `payload base espelha o contrato do app`() {
         val config = session().toSonioxConfig()
-        assertEquals("chave", config.getString("api_key"))
+        // A chave autentica a conexão (header), nunca o primeiro frame.
+        assertFalse(config.has("api_key"))
         assertEquals("stt-rt-v5", config.getString("model"))
         assertEquals("pcm_s16le", config.getString("audio_format"))
         assertEquals(16000, config.getInt("sample_rate"))
@@ -101,7 +102,7 @@ class KeyboardSessionTest {
     @Test
     fun `json gerado e json valido e sem chave vazia o teclado avisa`() {
         val config: JSONObject = session().toSonioxConfig()
-        assertTrue(config.has("api_key"))
+        assertFalse(config.has("api_key"))
         assertFalse(KeyboardSession("", emptyList(), "", emptyList(), null).hasApiKey)
     }
 }

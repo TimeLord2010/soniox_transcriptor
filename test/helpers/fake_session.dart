@@ -20,8 +20,15 @@ class FakeServer with WebsocketContract {
     return jsonDecode(sentText.first) as Map<String, dynamic>;
   }
 
+  /// Chave recebida no handshake — o servidor falso autentica por ela, como o
+  /// Soniox faz depois da migração.
+  String? apiKey;
+
   @override
-  Future<void> connect(String url) async => connected = true;
+  Future<void> connect(String url, {String? apiKey}) async {
+    this.apiKey = apiKey;
+    connected = true;
+  }
 
   @override
   Stream<String> get stream => _incoming.stream;

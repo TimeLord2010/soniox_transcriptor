@@ -71,7 +71,16 @@ class DictationSession(
             emit(Update(error = "Permissão de microfone não concedida. Abra o app Soniox e libere o microfone."))
             return
         }
-        val request = Request.Builder().url(URL).build()
+        if (!session.hasApiKey) {
+            emit(Update(error = "Sem chave Soniox neste perfil (defina em Início, no app)."))
+            return
+        }
+        // A chave vai no header do upgrade (Soniox exige a chave na CONEXÃO; no
+        // primeiro frame só vale até 15/01/2027).
+        val request = Request.Builder()
+            .url(URL)
+            .header("Authorization", "Bearer ${session.apiKey}")
+            .build()
         socket = client.newWebSocket(request, SocketListener())
     }
 

@@ -35,8 +35,9 @@ data class KeyboardSession(
      * um campo de texto, onde o rótulo "Falante N:" não tem para onde ir.
      */
     fun toSonioxConfig(): JSONObject {
+        // A chave NÃO vai no `start`: autentica a CONEXÃO (header do upgrade).
+        // O Soniox recusa conexão sem chave a partir de 15/01/2027.
         val config = JSONObject()
-            .put("api_key", apiKey)
             .put("model", model)
             .put("enable_speaker_diarization", false)
             .put("language_hints", JSONArray(languages))
