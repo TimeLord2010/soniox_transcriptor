@@ -604,7 +604,7 @@ packages:
       path: "/Users/vini/projects/vit/vit_soniox"
       relative: false
     source: path
-    version: "1.0.3"
+    version: "2.0.0"
   vm_service:
     dependency: transitive
     description:

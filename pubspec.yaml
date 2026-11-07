@@ -1,7 +1,7 @@
 name: soniox_transcriptor
 description: 'A new Flutter project.'
 publish_to: 'none'
-version: 0.3.0+6
+version: 0.3.1+7
 
 environment:
   sdk: ^3.11.5
@@ -20,7 +20,7 @@ dependencies:
   web: ^1.1.2
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
-  vit_soniox: ^1.0.3
+  vit_soniox: ^2.0.0
   record: ^7.2.0
   web_socket_channel: ^3.0.3
   vit_dart_extensions: ^4.2.0
