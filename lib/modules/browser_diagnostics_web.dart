@@ -7,9 +7,13 @@ String _n(num? v) => v == null ? '?' : v.toStringAsFixed(1);
 ///
 /// `client` é o layout viewport que o engine usa para dimensionar a tela;
 /// `vv` é o `visualViewport` (área realmente visível, que encolhe com o teclado);
-/// `surface` é a altura que o Flutter está desenhando (MediaQuery).
+/// `surface` é a altura da caixa que o Flutter está desenhando (constraint) e
+/// `media` é o que o `MediaQuery` do tree diz — no Safari do iPhone os dois
+/// divergem com o teclado aberto (constraint 396, MediaQuery 699), e medir pelo
+/// MediaQuery espremia a Sandbox.
 String browserDiagnostics({
   required double surfaceHeight,
+  required double mediaHeight,
   required EdgeInsets insets,
 }) {
   final root = web.document.documentElement;
@@ -27,7 +31,7 @@ String browserDiagnostics({
         'x${_n(win.innerHeight.toDouble())}'
         '  dpr ${_n(win.devicePixelRatio)}',
     viewport,
-    'surface ${_n(surfaceHeight)}'
+    'surface ${_n(surfaceHeight)}  media ${_n(mediaHeight)}'
         '  inset l${insets.left.toStringAsFixed(0)}'
         ' r${insets.right.toStringAsFixed(0)}'
         ' b${insets.bottom.toStringAsFixed(0)}',

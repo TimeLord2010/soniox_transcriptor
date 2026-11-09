@@ -189,85 +189,96 @@ class _MainPageState extends ConsumerState<MainPage>
     ref.listen(termsProvider, (_, _) => _publishKeyboardSession());
     ref.listen(translationProvider, (_, _) => _publishKeyboardSession());
     ref.listen(resolvedModelIdProvider, (_, _) => _publishKeyboardSession());
-    // No navegador a barra do Safari cobre o rodapé do layout viewport (o
-    // engine dimensiona por documentElement.client* e ignora o visualViewport
-    // fora de edição de texto). O SafeArea não vê isso no web — o recuo vem do
-    // visualViewport, nos três lados em que ele aparece.
-    final browserPadding = PlatformSupport.isWeb
-        ? browserInsets(surfaceHeight: MediaQuery.sizeOf(context).height)
-        : EdgeInsets.zero;
-    // Diagnóstico de viewport (temporário): mostra na tela o que o navegador
-    // reporta e o recuo aplicado. Sem isso, "o layout está errado no celular"
-    // vira adivinhação — os números decidem.
-    final diagnostics = browserDiagnostics(
-      surfaceHeight: MediaQuery.sizeOf(context).height,
-      insets: browserPadding,
-    );
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
       // fica atrás da barra de status/recorte e a tab bar atrás da barra de
       // gestos. No macOS os insets são zero, então nada muda.
       child: SafeArea(
-        child: Padding(
-          padding: browserPadding,
-          child: Stack(
-            children: [
-              Positioned.fill(child: _content()),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: CupertinoTabBar(
-                  currentIndex: currentPage,
-                  onTap: (value) {
-                    setState(() => currentPage = value);
-                  },
-                  items: const [
-                    BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.house),
-                      activeIcon: Icon(CupertinoIcons.house_fill),
-                      label: 'Início',
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // A altura que o engine está DESENHANDO é a constraint, não o
+            // MediaQuery: com o teclado aberto o Safari encolhe a view e o
+            // framework relayouta, mas o MediaQuery do tree fica no valor
+            // anterior (medido no aparelho: MediaQuery 699, caixa 396). Medir
+            // pelo MediaQuery devolvia inset 303 e espremia a Sandbox em 93 px.
+            final surfaceHeight = constraints.maxHeight;
+            // No navegador a barra do Safari cobre o rodapé do layout viewport
+            // (o engine dimensiona por documentElement.client* e ignora o
+            // visualViewport fora de edição de texto). O SafeArea não vê isso
+            // no web — o recuo vem do visualViewport, nos três lados.
+            final browserPadding = PlatformSupport.isWeb
+                ? browserInsets(surfaceHeight: surfaceHeight)
+                : EdgeInsets.zero;
+            // Diagnóstico de viewport (temporário): mostra na tela o que o
+            // navegador reporta e o recuo aplicado. Sem isso, "o layout está
+            // errado no celular" vira adivinhação — os números decidem.
+            final diagnostics = browserDiagnostics(
+              surfaceHeight: surfaceHeight,
+              mediaHeight: MediaQuery.sizeOf(context).height,
+              insets: browserPadding,
+            );
+            return Padding(
+              padding: browserPadding,
+              child: Stack(
+                children: [
+                  Positioned.fill(child: _content()),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: CupertinoTabBar(
+                      currentIndex: currentPage,
+                      onTap: (value) {
+                        setState(() => currentPage = value);
+                      },
+                      items: const [
+                        BottomNavigationBarItem(
+                          icon: Icon(CupertinoIcons.house),
+                          activeIcon: Icon(CupertinoIcons.house_fill),
+                          label: 'Início',
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(CupertinoIcons.text_alignleft),
+                          activeIcon: Icon(CupertinoIcons.text_alignleft),
+                          label: 'Sandbox',
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(CupertinoIcons.clock),
+                          activeIcon: Icon(CupertinoIcons.clock_fill),
+                          label: 'Histórico',
+                        ),
+                      ],
                     ),
-                    BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.text_alignleft),
-                      activeIcon: Icon(CupertinoIcons.text_alignleft),
-                      label: 'Sandbox',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.clock),
-                      activeIcon: Icon(CupertinoIcons.clock_fill),
-                      label: 'Histórico',
-                    ),
-                  ],
-                ),
-              ),
-              if (diagnostics.isNotEmpty)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      color: const Color(0xCC000000),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        diagnostics,
-                        style: const TextStyle(
-                          color: Color(0xFFFFFFFF),
-                          fontSize: 9,
-                          height: 1.3,
-                          fontFamily: 'monospace',
+                  ),
+                  if (diagnostics.isNotEmpty)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          color: const Color(0xCC000000),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            diagnostics,
+                            style: const TextStyle(
+                              color: Color(0xFFFFFFFF),
+                              fontSize: 9,
+                              height: 1.3,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-            ],
-          ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

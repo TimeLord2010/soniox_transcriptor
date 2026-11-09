@@ -8,9 +8,14 @@ import 'browser_diagnostics_stub.dart'
 /// no celular não bate com o que o Dart acha que tem de espaço.
 ///
 /// Serve para diagnosticar sem adivinhar: mostra o que o navegador reporta, o
-/// que o engine está desenhando e o recuo que o app aplicou. Fora do navegador
+/// que o engine está desenhando (a constraint) e o recuo que o app aplicou. Fora do navegador
 /// devolve texto vazio (não desenha nada).
 String browserDiagnostics({
   required double surfaceHeight,
+  required double mediaHeight,
   required EdgeInsets insets,
-}) => impl.browserDiagnostics(surfaceHeight: surfaceHeight, insets: insets);
+}) => impl.browserDiagnostics(
+  surfaceHeight: surfaceHeight,
+  mediaHeight: mediaHeight,
+  insets: insets,
+);
