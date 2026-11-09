@@ -193,7 +193,7 @@ class _MainPageState extends ConsumerState<MainPage>
     // fora de edição de texto). O SafeArea não vê isso no web — o recuo vem do
     // visualViewport, nos três lados em que ele aparece.
     final browserPadding = PlatformSupport.isWeb
-        ? browserInsets()
+        ? browserInsets(surfaceHeight: MediaQuery.sizeOf(context).height)
         : EdgeInsets.zero;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
