@@ -64,9 +64,31 @@ done
 
 echo "==> build web (sem CDN de canvaskit: tudo servido pelo próprio bucket)"
 flutter pub get
-flutter build web --release --no-web-resources-cdn
+flutter build web --release --no-web-resources-cdn --pwa-strategy=none
 
 [ -f build/web/index.html ] || die "o build web não gerou build/web/index.html"
+
+# Sem service worker: em vez de sumir com o arquivo, publica um worker que se
+# AUTODESTRÓI. Sumir não funciona — o CloudFront responde 404 com index.html
+# (content-type text/html), a checagem de update falha e o worker antigo
+# continua servindo o bundle velho. Um worker válido que apaga caches,
+# desregistra e recarrega os clientes mata o antigo na primeira navegação.
+cat > build/web/flutter_service_worker.js <<'JS'
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      await self.registration.unregister();
+      const clients = await self.clients.matchAll({ type: 'window' });
+      clients.forEach((c) => c.navigate(c.url));
+    } catch (e) {
+      await self.registration.unregister();
+    }
+  })());
+});
+JS
 
 echo "==> upload (HTML e JS de boot: sempre revalidar)"
 aws_ s3 sync build/web "s3://$BUCKET" --exclude "*" \

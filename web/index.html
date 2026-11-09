@@ -36,6 +36,23 @@
 </head>
 <body>
   <!--
+    Sem service worker: o app precisa de rede de qualquer jeito (transcrição ao
+    vivo), e o worker deixava o bundle ANTIGO no ar depois de um deploy — o
+    sintoma era "atualizei e o defeito continua". Aqui o worker antigo (de
+    builds anteriores) é desregistrado e o cache dele apagado uma vez.
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+      if (window.caches) {
+        caches.keys().then(function (ks) {
+          ks.forEach(function (k) { caches.delete(k); });
+        });
+      }
+    }
+  </script>
+  <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
     or to give the user feedback during the initialization process.

@@ -11,6 +11,7 @@ import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/modules/browser_diagnostics.dart';
 import 'package:soniox_transcriptor/modules/browser_viewport.dart';
 import 'package:soniox_transcriptor/modules/control_tokens.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
@@ -195,6 +196,13 @@ class _MainPageState extends ConsumerState<MainPage>
     final browserPadding = PlatformSupport.isWeb
         ? browserInsets(surfaceHeight: MediaQuery.sizeOf(context).height)
         : EdgeInsets.zero;
+    // Diagnóstico de viewport (temporário): mostra na tela o que o navegador
+    // reporta e o recuo aplicado. Sem isso, "o layout está errado no celular"
+    // vira adivinhação — os números decidem.
+    final diagnostics = browserDiagnostics(
+      surfaceHeight: MediaQuery.sizeOf(context).height,
+      insets: browserPadding,
+    );
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       // No Android a janela é edge-to-edge: sem SafeArea o cabeçalho "Perfil"
@@ -234,6 +242,30 @@ class _MainPageState extends ConsumerState<MainPage>
                   ],
                 ),
               ),
+              if (diagnostics.isNotEmpty)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      color: const Color(0xCC000000),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        diagnostics,
+                        style: const TextStyle(
+                          color: Color(0xFFFFFFFF),
+                          fontSize: 9,
+                          height: 1.3,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
