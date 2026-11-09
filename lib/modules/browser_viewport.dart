@@ -14,4 +14,9 @@ import 'browser_viewport_stub.dart'
 /// o `visualViewport`, então o recuo vem de lá.
 ///
 /// Fora do navegador é [EdgeInsets.zero].
-EdgeInsets browserInsets() => impl.browserInsets();
+///
+/// [surfaceHeight] é a altura que o Flutter desenha (o tamanho da view). Passar
+/// isso evita contar o teclado duas vezes quando o engine já encolheu a view
+/// para o `visualViewport`.
+EdgeInsets browserInsets({double? surfaceHeight}) =>
+    impl.browserInsets(surfaceHeight: surfaceHeight);
