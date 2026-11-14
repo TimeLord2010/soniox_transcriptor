@@ -5,3 +5,6 @@ analyzer:
     - android/**
     - web/**
 include: package:flutter_lints/flutter.yaml
+linter:
+  rules:
+    - unawaited_futures
