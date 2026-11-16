@@ -68,7 +68,7 @@ class DictationSession(
             PackageManager.PERMISSION_GRANTED
         ) {
             Log.w(TAG, "start: RECORD_AUDIO negado")
-            emit(Update(error = "Permissão de microfone não concedida. Abra o app Soniox e libere o microfone."))
+            emit(Update(error = "Permissão de microfone não concedida. Abra o app Vit Transcriptor e libere o microfone."))
             return
         }
         if (!session.hasApiKey) {

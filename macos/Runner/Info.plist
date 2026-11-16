@@ -15,7 +15,7 @@
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Vit Soniox</string>
+	<string>Vit Transcriptor</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -31,7 +31,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app requires microphone access to transcribe audio.</string>
+	<string>Vit Transcriptor requires microphone access to transcribe audio.</string>
 	<key>FLTEnableImpeller</key>
 	<true/>
 </dict>

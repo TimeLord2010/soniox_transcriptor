@@ -18,7 +18,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ProviderScope(
       child: CupertinoApp(
-        title: 'Soniox Transcriptor',
+        title: 'Vit Transcriptor',
         theme: const CupertinoThemeData(brightness: .light),
         scrollBehavior: const CupertinoScrollBehavior().copyWith(
           dragDevices: PointerDeviceKind.values.toSet(),

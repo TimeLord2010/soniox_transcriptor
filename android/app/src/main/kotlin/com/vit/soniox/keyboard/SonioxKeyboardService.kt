@@ -566,7 +566,7 @@ class SonioxKeyboardService : InputMethodService() {
                 @Suppress("DEPRECATION") Notification.Builder(this)
             }
             val notification = builder
-                .setContentTitle("Soniox")
+                .setContentTitle("Vit Transcriptor")
                 .setContentText("Ditado em andamento")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setOngoing(true)

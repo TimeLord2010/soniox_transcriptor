@@ -1,4 +1,4 @@
-# soniox_transcriptor
+# Vit Transcriptor
 
 Transcrição em tempo real via Soniox, com perfis (chave, termos, idiomas e
 contexto por perfil).
@@ -39,7 +39,7 @@ espalhe `Platform.isMacOS` pelo código.
 
 ```bash
 # macOS
-flutter build macos --release   # build/macos/Build/Products/Release/soniox_transcriptor.app
+flutter build macos --release   # build/macos/Build/Products/Release/Vit Transcriptor.app
 
 # Android — SEMPRE arm64 (dispositivos recentes)
 flutter build apk --release --target-platform android-arm64 \

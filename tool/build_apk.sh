@@ -84,7 +84,7 @@ fi
 # aparelho). APK_OUT_DIR permite mandar para outro lugar.
 VERSION="$(grep -E '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
 DEST_DIR="${APK_OUT_DIR:-$HOME/Downloads}"
-DEST_APK="$DEST_DIR/soniox_transcriptor-${VERSION}-arm64.apk"
+DEST_APK="$DEST_DIR/Vit-Transcriptor-${VERSION}-arm64.apk"
 mkdir -p "$DEST_DIR"
 cp -f "$APK" "$DEST_APK"
 SYMBOLS_FILE="$(ls "$SYMBOLS_DIR"/*.symbols 2>/dev/null | head -1 || true)"
