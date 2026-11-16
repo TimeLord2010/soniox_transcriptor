@@ -115,7 +115,7 @@ class _HistoryItem extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                formatTime(record.createdAt),
+                formatDateTime(record.createdAt),
                 style: const TextStyle(
                   fontSize: 12,
                   color: CupertinoColors.secondaryLabel,
@@ -141,4 +141,14 @@ class _HistoryItem extends StatelessWidget {
   }
 }
 
-String formatTime(DateTime dt) => dt.toIso8601String();
+/// Data e hora do registro em pt-BR, no fuso do aparelho: 16/11/2026 19:23.
+///
+/// Antes saía o `toIso8601String()` cru (2026-11-16T19:23:05.123-0300), que é
+/// formato de máquina. O `toLocal()` é explícito para o caso de o registro ter
+/// vindo em UTC (importação do teclado).
+String formatDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} '
+      '${two(local.hour)}:${two(local.minute)}';
+}
