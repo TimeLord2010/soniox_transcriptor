@@ -9,6 +9,7 @@ import 'package:soniox_transcriptor/components/pages/sandbox_tab.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/browser_viewport.dart';
+import 'package:soniox_transcriptor/modules/keyboard_history_importer.dart';
 import 'package:soniox_transcriptor/modules/keyboard_session.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
 import 'package:soniox_transcriptor/modules/session_config.dart';
@@ -72,10 +73,24 @@ class _MainPageState extends ConsumerState<MainPage>
 
   int currentPage = 0;
 
+  /// Traz para o histórico o que o teclado Android ditou fora do app.
+  final _keyboardHistory = KeyboardHistoryImporter();
+
+  Future<void> _importKeyboardHistory() async {
+    final imported = await _keyboardHistory.run();
+    if (imported > 0 && mounted) ref.invalidate(historyProvider);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _importKeyboardHistory();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _importKeyboardHistory();
     if (PlatformSupport.supportsGlobalHotkey) {
       hotkeyListener.start().catchError((Object e) {
         debugPrint('[MainPage] hotkeyListener.start() error: $e');
@@ -150,6 +165,9 @@ class _MainPageState extends ConsumerState<MainPage>
                       currentIndex: currentPage,
                       onTap: (value) {
                         setState(() => currentPage = value);
+                        if (value != _homeTab && value != _sandboxTab) {
+                          _importKeyboardHistory();
+                        }
                       },
                       items: const [
                         BottomNavigationBarItem(

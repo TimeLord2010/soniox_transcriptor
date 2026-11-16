@@ -56,6 +56,9 @@ class SonioxKeyboardService : InputMethodService() {
     private var dictation: DictationSession? = null
     private var foreground = false
 
+    /** Grava o que o ditado em curso já digitou no campo (null sem ditado). */
+    private var flushHistory: (() -> Unit)? = null
+
     /** Recuo inferior (px) da barra do sistema já aplicado ao root. */
     private var insetBottomPx = 0
 
@@ -72,6 +75,7 @@ class SonioxKeyboardService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         KeyboardDiary.init(this)
+        KeyboardHistoryOutbox.init(this)
         installCrashHook()
         justCreated = true
         Log.d(TAG, "service onCreate pid=${android.os.Process.myPid()}")
@@ -229,6 +233,10 @@ class SonioxKeyboardService : InputMethodService() {
 
     override fun onDestroy() {
         diary("onDestroy")
+        // release() não emite `finished`: sem isto o texto do ditado em curso
+        // não chegaria ao histórico.
+        flushHistory?.invoke()
+        flushHistory = null
         dictation?.release()
         dictation = null
         stopForegroundQuietly()
@@ -471,6 +479,19 @@ class SonioxKeyboardService : InputMethodService() {
         state = State.Connecting
         render()
 
+        // Texto desta sessão que já foi para o campo. Vive na closure: cada
+        // sessão tem o seu, então um `finished` repetido (stop + onClosed) ou
+        // atrasado de uma sessão antiga nunca mistura nem duplica; o flush
+        // pega e zera, logo só a primeira chamada grava.
+        val committed = StringBuilder()
+        var ended = false
+        val flush = {
+            val text = committed.toString()
+            committed.setLength(0)
+            KeyboardHistoryOutbox.enqueue(text)
+        }
+        flushHistory = flush
+
         dictation = DictationSession(this, session) { update ->
             if (update.connected) {
                 state = State.Listening
@@ -489,11 +510,16 @@ class SonioxKeyboardService : InputMethodService() {
             update.finalText?.let { text ->
                 // Finais são deltas: cada evento traz só o que acabou de virar
                 // final, então concatenar no campo é o certo.
-                currentInputConnection?.commitText(text, 1)
+                if (currentInputConnection?.commitText(text, 1) == true) committed.append(text)
+                // Final tardio, depois do fim da sessão: grava já.
+                if (ended) flush()
                 preview = ""
                 render()
             }
             if (update.finished) {
+                ended = true
+                flush()
+                if (flushHistory === flush) flushHistory = null
                 dictation?.release()
                 dictation = null
                 if (state != State.Error) state = State.Idle
