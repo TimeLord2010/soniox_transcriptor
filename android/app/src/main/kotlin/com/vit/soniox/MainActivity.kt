@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
+import com.vit.soniox.keyboard.KeyboardDiary
 import com.vit.soniox.keyboard.SonioxKeyboardService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -34,6 +35,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        KeyboardDiary.init(this)
 
         // O Flutter não fala com o gerenciador de teclados: só a Activity pode
         // abrir a lista de teclados e mostrar o seletor do sistema.
@@ -65,6 +67,19 @@ class MainActivity : FlutterActivity() {
                         val manager = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                         manager?.showInputMethodPicker()
                         result.success(null)
+                    }
+
+                    "readDiary" -> result.success(KeyboardDiary.read())
+
+                    "clearDiary" -> {
+                        KeyboardDiary.clear()
+                        result.success(null)
+                    }
+
+                    "appVersion" -> {
+                        val info = packageManager.getPackageInfo(packageName, 0)
+                        @Suppress("DEPRECATION")
+                        result.success("${info.versionName}+${info.versionCode}")
                     }
 
                     else -> result.notImplemented()

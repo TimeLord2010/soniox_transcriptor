@@ -176,6 +176,10 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
             ],
           ),
         ),
+        const Gap(16),
+        const Text('Diário do teclado', style: sectionLabelStyle),
+        const Gap(kLabelSpacing),
+        const _KeyboardDiary(),
       ],
     );
   }
@@ -211,6 +215,150 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
           fontWeight: FontWeight.w600,
           color: filled ? CupertinoColors.white : CupertinoColors.label,
         ),
+      ),
+    );
+  }
+}
+
+/// Diário do teclado: últimas linhas de eventos do IME (gravadas pelo
+/// `KeyboardDiary` nativo) para o usuário copiar e mandar. Mostra também a
+/// versão do app, para distinguir builds de teste.
+class _KeyboardDiary extends StatefulWidget {
+  const _KeyboardDiary();
+
+  @override
+  State<_KeyboardDiary> createState() => _KeyboardDiaryState();
+}
+
+class _KeyboardDiaryState extends State<_KeyboardDiary> {
+  String _diary = '';
+  String _version = '';
+  String? _notice;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    try {
+      final text = await _keyboardChannel.invokeMethod<String>('readDiary');
+      final version = await _keyboardChannel.invokeMethod<String>('appVersion');
+      if (!mounted) return;
+      setState(() {
+        _diary = text ?? '';
+        _version = version ?? '';
+        _notice = null;
+      });
+    } on PlatformException catch (e) {
+      debugPrint('[KeyboardDiary] leitura falhou: $e');
+    } on MissingPluginException catch (e) {
+      debugPrint('[KeyboardDiary] canal ausente: $e');
+    }
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _diary));
+    if (!mounted) return;
+    setState(() => _notice = 'Diário copiado (${_lines().length} linhas).');
+  }
+
+  Future<void> _clear() async {
+    await _keyboardChannel.invokeMethod<void>('clearDiary');
+    await _reload();
+    if (!mounted) return;
+    setState(() => _notice = 'Diário limpo.');
+  }
+
+  List<String> _lines() =>
+      _diary.split('\n').where((l) => l.isNotEmpty).toList();
+
+  Widget _button(Key key, String label, VoidCallback onPressed) {
+    return Expanded(
+      child: CupertinoButton(
+        key: key,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(8),
+        onPressed: onPressed,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: CupertinoColors.label,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = _lines();
+    final latest = lines.length > 40 ? lines.sublist(lines.length - 40) : lines;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: fieldDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Versão do app: $_version',
+            key: const ValueKey('android-keyboard-version'),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const Gap(8),
+          Row(
+            children: [
+              _button(
+                const ValueKey('android-keyboard-diary-copy'),
+                'Copiar',
+                _copy,
+              ),
+              const Gap(8),
+              _button(
+                const ValueKey('android-keyboard-diary-clear'),
+                'Limpar',
+                _clear,
+              ),
+              const Gap(8),
+              _button(
+                const ValueKey('android-keyboard-diary-refresh'),
+                'Atualizar',
+                _reload,
+              ),
+            ],
+          ),
+          if (_notice != null) ...[
+            const Gap(8),
+            Text(
+              _notice!,
+              key: const ValueKey('android-keyboard-diary-notice'),
+              style: const TextStyle(
+                fontSize: 12,
+                color: CupertinoColors.activeGreen,
+              ),
+            ),
+          ],
+          const Gap(8),
+          SizedBox(
+            height: 220,
+            child: SingleChildScrollView(
+              reverse: true,
+              child: Text(
+                latest.isEmpty ? '(diário vazio)' : latest.join('\n'),
+                key: const ValueKey('android-keyboard-diary-text'),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

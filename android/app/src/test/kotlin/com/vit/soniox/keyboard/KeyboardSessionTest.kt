@@ -23,7 +23,7 @@ class KeyboardSessionTest {
         context: String = "",
         terms: List<String> = emptyList(),
         translation: String? = null,
-    ) = KeyboardSession(apiKey, languages, context, terms, translation)
+    ) = KeyboardSession(apiKey, languages, context, terms, translation, KeyboardSession.MODEL)
 
     @Test
     fun `payload base espelha o contrato do app`() {
@@ -103,6 +103,6 @@ class KeyboardSessionTest {
     fun `json gerado e json valido e sem chave vazia o teclado avisa`() {
         val config: JSONObject = session().toSonioxConfig()
         assertFalse(config.has("api_key"))
-        assertFalse(KeyboardSession("", emptyList(), "", emptyList(), null).hasApiKey)
+        assertFalse(KeyboardSession("", emptyList(), "", emptyList(), null, KeyboardSession.MODEL).hasApiKey)
     }
 }

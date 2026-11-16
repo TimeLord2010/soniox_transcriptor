@@ -71,7 +71,77 @@ class SonioxKeyboardService : InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
+        KeyboardDiary.init(this)
+        installCrashHook()
+        justCreated = true
         Log.d(TAG, "service onCreate pid=${android.os.Process.myPid()}")
+        diary("onCreate pid=${android.os.Process.myPid()} sdk=${Build.VERSION.SDK_INT} ${Build.MANUFACTURER} ${Build.MODEL}")
+    }
+
+    /** Linha no diário com o estado da janela do teclado anexado. */
+    private fun diary(event: String) {
+        val shown = try { isInputViewShown } catch (_: Throwable) { false }
+        KeyboardDiary.log("$event | shown=$shown")
+    }
+
+    /** Registra no diário a exceção não tratada e repassa ao handler anterior. */
+    private fun installCrashHook() {
+        if (crashHookInstalled) return
+        crashHookInstalled = true
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            try {
+                KeyboardDiary.log("CRASH thread=${thread.name} ${Log.getStackTraceString(error).take(1500)}")
+            } catch (_: Throwable) {
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
+    /** Só a primeira entrada depois de o serviço ser criado (troca de teclado). */
+    private var justCreated = false
+
+    override fun onBindInput() {
+        super.onBindInput()
+        diary("onBindInput")
+    }
+
+    override fun onUnbindInput() {
+        diary("onUnbindInput")
+        super.onUnbindInput()
+    }
+
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+        val inputType = attribute?.inputType ?: 0
+        diary(
+            "onStartInput restarting=$restarting inputType=0x${Integer.toHexString(inputType)} " +
+                "pkg=${attribute?.packageName} fieldId=${attribute?.fieldId} " +
+                "imeOptions=0x${Integer.toHexString(attribute?.imeOptions ?: 0)}",
+        )
+        val first = justCreated
+        justCreated = false
+        // Depois de uma troca direta de teclado o sistema às vezes carrega o
+        // pedido de ocultar do teclado anterior e nunca chama onShowInputRequested:
+        // o teclado some. Só na primeira entrada após criar o serviço, pede para
+        // aparecer, para não surgir sem ser pedido depois.
+        val editable = (inputType and EditorInfo.TYPE_MASK_CLASS) != EditorInfo.TYPE_NULL
+        if (first && !restarting && !isInputViewShown && editable) {
+            diary("requestShowSelf(0) auto-show")
+            requestShowSelf(0)
+            handler.postDelayed({
+                try {
+                    if (currentInputStarted && !isInputViewShown) {
+                        diary("requestShowSelf(0) retry")
+                        requestShowSelf(0)
+                    } else {
+                        diary("auto-show check ok")
+                    }
+                } catch (e: Throwable) {
+                    KeyboardDiary.log("EXC retry ${e}")
+                }
+            }, 150)
+        }
     }
 
     /**
@@ -82,18 +152,21 @@ class SonioxKeyboardService : InputMethodService() {
      */
     override fun onEvaluateInputViewShown(): Boolean {
         Log.d(TAG, "onEvaluateInputViewShown -> true (teclado de ditado)")
+        KeyboardDiary.log("onEvaluateInputViewShown -> true")
         return true
     }
 
     override fun onShowInputRequested(flags: Int, force: Boolean): Boolean {
         val requested = super.onShowInputRequested(flags, force)
         Log.d(TAG, "onShowInputRequested flags=$flags force=$force -> $requested")
+        diary("onShowInputRequested flags=$flags force=$force -> $requested")
         return requested
     }
 
     override fun onWindowShown() {
         super.onWindowShown()
         Log.d(TAG, "onWindowShown")
+        diary("onWindowShown")
         // A barra do sistema pode ter mudado enquanto o teclado estava oculto.
         refreshWindowInsets()
     }
@@ -121,6 +194,7 @@ class SonioxKeyboardService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         Log.d(TAG, "onStartInputView: inputType=${info?.inputType}")
+        diary("onStartInputView restarting=$restarting")
         // O perfil pode ter mudado com o app aberto: relê a config a cada vez
         // que o teclado aparece, em vez de confiar no que foi lido no onCreate.
         session = KeyboardSession.load(this)
@@ -129,7 +203,18 @@ class SonioxKeyboardService : InputMethodService() {
         if (state == State.Idle) render()
     }
 
+    override fun onFinishInputView(finishingInput: Boolean) {
+        diary("onFinishInputView finishing=$finishingInput")
+        super.onFinishInputView(finishingInput)
+    }
+
+    override fun onCurrentInputMethodSubtypeChanged(newSubtype: android.view.inputmethod.InputMethodSubtype?) {
+        diary("onCurrentInputMethodSubtypeChanged subtype=$newSubtype")
+        super.onCurrentInputMethodSubtypeChanged(newSubtype)
+    }
+
     override fun onFinishInput() {
+        diary("onFinishInput")
         // Campo perdeu o foco: parar de gravar. Microfone aberto no escuro é
         // exatamente o que não pode acontecer num teclado.
         stopDictation()
@@ -137,11 +222,13 @@ class SonioxKeyboardService : InputMethodService() {
     }
 
     override fun onWindowHidden() {
+        diary("onWindowHidden")
         stopDictation()
         super.onWindowHidden()
     }
 
     override fun onDestroy() {
+        diary("onDestroy")
         dictation?.release()
         dictation = null
         stopForegroundQuietly()
@@ -151,6 +238,7 @@ class SonioxKeyboardService : InputMethodService() {
     /** Tema claro/escuro trocado com o teclado aberto: reaplica cor dos botões do sistema. */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        diary("onConfigurationChanged orientation=${newConfig.orientation} uiMode=0x${Integer.toHexString(newConfig.uiMode)}")
         applySystemBarAppearance()
         if (this::root.isInitialized) {
             root.setBackgroundColor(if (isNight) NIGHT_BACKGROUND else LIGHT_BACKGROUND)
@@ -303,6 +391,7 @@ class SonioxKeyboardService : InputMethodService() {
     }
 
     private fun updateBottomInset(insets: WindowInsets) {
+        if (!this::root.isInitialized) return
         val bottom = bottomInset(insets)
         Log.d(TAG, "insets: recuo inferior=${bottom}px (${bottom / density}dp)")
         if (bottom == insetBottomPx) return
@@ -374,6 +463,7 @@ class SonioxKeyboardService : InputMethodService() {
         }
         if (dictation != null) return
 
+        diary("dictation start")
         startForegroundForMic()
         nothingToTranslate = false
         preview = ""
@@ -417,6 +507,7 @@ class SonioxKeyboardService : InputMethodService() {
 
     private fun stopDictation() {
         val running = dictation ?: return
+        diary("dictation stop")
         if (state == State.Listening || state == State.Connecting) {
             state = State.Finishing
             render()
@@ -494,6 +585,7 @@ class SonioxKeyboardService : InputMethodService() {
             // Sem primeiro plano: tenta mesmo assim; um SecurityException do
             // AudioRecord aparece na linha de status.
             foreground = false
+            KeyboardDiary.log("EXC startForeground $e")
         }
     }
 
@@ -564,6 +656,7 @@ class SonioxKeyboardService : InputMethodService() {
 
     companion object {
         private const val TAG = "SonioxKeyboard"
+        private var crashHookInstalled = false
         private const val CHANNEL_ID = "soniox_keyboard_dictation"
         private const val NOTIFICATION_ID = 4711
         private const val ACCENT = 0xFF0A84FF.toInt()
