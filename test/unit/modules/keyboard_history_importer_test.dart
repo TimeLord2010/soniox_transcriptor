@@ -3,44 +3,64 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/keyboard_history_importer.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 
 import '../../helpers/database.dart';
 import '../../helpers/prefs.dart';
 
+/// Repositório que falha no N-ésimo insert (1-based).
+class _FailingRepo implements TranscriptionRepository {
+  final TranscriptionRepository inner;
+  final int failOn;
+  int calls = 0;
+  _FailingRepo(this.inner, this.failOn);
+
+  @override
+  void insert(TranscriptionRecord record) {
+    calls++;
+    if (calls == failOn) throw StateError('db down');
+    inner.insert(record);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
-  late Directory dir;
+  late Directory base;
+  late Directory box;
   late TranscriptionRepository repo;
   late KeyboardHistoryImporter importer;
 
-  File outbox() => File('${dir.path}/${KeyboardHistoryImporter.outboxName}');
-  File importing() =>
-      File('${dir.path}/${KeyboardHistoryImporter.importingName}');
-
-  String line(String text, int ms) =>
+  String entry(String text, int ms) =>
       jsonEncode({'final_text': text, 'created_at': ms});
+
+  File put(String name, String content) =>
+      File('${box.path}/$name')..writeAsStringSync(content);
 
   setUp(() async {
     await setUpPrefs();
     setUpDatabase();
     repo = GetIt.I.get<TranscriptionRepository>();
-    dir = await Directory.systemTemp.createTemp('kbd_history_test');
+    base = await Directory.systemTemp.createTemp('kbd_history_test');
+    box = Directory('${base.path}/${KeyboardHistoryImporter.dirName}')
+      ..createSync();
     importer = KeyboardHistoryImporter(
-      directory: () async => dir,
+      directory: () async => base,
       enabled: true,
     );
   });
 
   tearDown(() async {
     await tearDownGetIt();
-    await dir.delete(recursive: true);
+    await base.delete(recursive: true);
   });
 
-  test('imports lines, deletes the file, newest first', () async {
-    outbox().writeAsStringSync(
-      '${line('antigo', 1000)}\n${line('novo', 2000)}\n',
-    );
+  test('imports files, deletes them, newest first', () async {
+    put('1000-a.json', entry('antigo', 1000));
+    put('2000-b.json', entry('novo', 2000));
 
     expect(await importer.run(), 2);
 
@@ -48,54 +68,62 @@ void main() {
     expect(all.map((r) => r.finalText), ['novo', 'antigo']);
     expect(all.first.createdAt.millisecondsSinceEpoch, 2000);
     expect(all.first.nonFinalText, '');
-    expect(outbox().existsSync(), isFalse);
-    expect(importing().existsSync(), isFalse);
+    expect(box.listSync(), isEmpty);
   });
 
-  test('skips malformed and blank lines', () async {
-    outbox().writeAsStringSync(
-      'not json\n\n${line('ok', 5)}\n{"final_text":1,"created_at":2}\n'
-      '[1,2]\n${line('  ', 6)}\n',
-    );
+  test('malformed files are deleted without inserting', () async {
+    put('1-a.json', 'not json');
+    put('2-b.json', '[1,2]');
+    put('3-c.json', '{"final_text":1,"created_at":2}');
+    put('4-d.json', entry('  ', 6));
+    put('5-e.json', entry('ok', 5));
 
     expect(await importer.run(), 1);
     expect(repo.getAll().map((r) => r.finalText), ['ok']);
+    expect(box.listSync(), isEmpty);
   });
 
-  test('imports a leftover .importing first, then the outbox', () async {
-    importing().writeAsStringSync('${line('sobra', 10)}\n');
-    outbox().writeAsStringSync('${line('novo', 20)}\n');
-
-    expect(await importer.run(), 2);
-    expect(repo.getAll().map((r) => r.finalText), ['novo', 'sobra']);
-    expect(importing().existsSync(), isFalse);
-    expect(outbox().existsSync(), isFalse);
-  });
-
-  test('no file: nothing happens', () async {
+  test('missing dir returns 0', () async {
+    box.deleteSync(recursive: true);
     expect(await importer.run(), 0);
-    expect(repo.getAll(), isEmpty);
   });
 
-  test('keeps the .importing file when an insert fails', () async {
-    outbox().writeAsStringSync('${line('a', 1)}\n');
+  test('.tmp files are ignored and kept', () async {
+    final tmp = put('9-x.tmp', entry('parcial', 9));
+    put('1-a.json', entry('a', 1));
+
+    expect(await importer.run(), 1);
+    expect(tmp.existsSync(), isTrue);
+    expect(repo.getAll().length, 1);
+  });
+
+  test('insert failure stops; rerun totals 3, not 4', () async {
+    put('1-a.json', entry('a', 1));
+    put('2-b.json', entry('b', 2));
+    put('3-c.json', entry('c', 3));
+    final shared = _FailingRepo(repo, 2);
     final failing = KeyboardHistoryImporter(
-      directory: () async => dir,
-      repository: () => throw StateError('db down'),
+      directory: () async => base,
+      repository: () => shared,
       enabled: true,
     );
 
-    expect(await failing.run(), 0);
-    expect(importing().existsSync(), isTrue);
+    expect(await failing.run(), 1);
+    expect(repo.getAll().length, 1);
+    expect(box.listSync().length, 2);
 
-    // Próxima tentativa (banco de volta) recupera.
-    expect(await importer.run(), 1);
-    expect(importing().existsSync(), isFalse);
+    expect(await importer.run(), 2);
+    expect(repo.getAll().length, 3);
+    expect(box.listSync(), isEmpty);
   });
 
   test('respects the 100-record cap', () async {
-    final lines = [for (var i = 0; i < 120; i++) line('t$i', i * 1000)];
-    outbox().writeAsStringSync('${lines.join('\n')}\n');
+    for (var i = 0; i < 120; i++) {
+      put(
+        '${(i * 1000).toString().padLeft(8, '0')}-x.json',
+        entry('t$i', i * 1000),
+      );
+    }
 
     await importer.run();
 
@@ -105,7 +133,7 @@ void main() {
   });
 
   test('concurrent runs share one execution', () async {
-    outbox().writeAsStringSync('${line('a', 1)}\n');
+    put('1-a.json', entry('a', 1));
 
     final results = await Future.wait([importer.run(), importer.run()]);
 
@@ -114,13 +142,13 @@ void main() {
   });
 
   test('disabled importer is a no-op', () async {
-    outbox().writeAsStringSync('${line('a', 1)}\n');
+    final f = put('1-a.json', entry('a', 1));
     final off = KeyboardHistoryImporter(
-      directory: () async => dir,
+      directory: () async => base,
       enabled: false,
     );
 
     expect(await off.run(), 0);
-    expect(outbox().existsSync(), isTrue);
+    expect(f.existsSync(), isTrue);
   });
 }

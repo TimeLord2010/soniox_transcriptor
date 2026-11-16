@@ -3,52 +3,73 @@ package com.vit.soniox.keyboard
 import android.content.Context
 import org.json.JSONObject
 import java.io.File
+import java.util.UUID
 
 /**
- * Caixa de saída do histórico: o teclado (Kotlin) não abre o SQLite do app
- * (duas bibliotecas SQLite no mesmo arquivo arriscam travar/corromper). Ele só
- * acrescenta uma linha JSON por ditado em `keyboard_history_outbox.jsonl`, no
- * `filesDir`; o app (Dart) renomeia o arquivo, importa as linhas para o
- * histórico e apaga. NUNCA lança: falha aqui não pode derrubar o teclado.
+ * Caixa de saída do histórico: o teclado (Kotlin) não abre o SQLite do app. Cada
+ * ditado vira UM arquivo `<createdAtMs>-<uuid>.json` em `filesDir/keyboard_history/`,
+ * escrito em `.tmp` e renomeado (atômico): o app (Dart) só lê `*.json`, importa e
+ * apaga cada um, sem corrida com o teclado. NUNCA lança: falha aqui não pode
+ * derrubar o teclado.
  */
 object KeyboardHistoryOutbox {
-    const val FILE_NAME = "keyboard_history_outbox.jsonl"
-    const val MAX_LINES = 200
+    const val DIR_NAME = "keyboard_history"
+    const val MAX_FILES = 200
+    private const val STALE_TMP_MS = 60_000L
 
-    private var file: File? = null
+    private var dir: File? = null
 
     @Synchronized
     fun init(context: Context) {
         try {
-            if (file == null) file = File(context.applicationContext.filesDir, FILE_NAME)
+            if (dir == null) dir = File(context.applicationContext.filesDir, DIR_NAME)
         } catch (_: Throwable) {
         }
     }
 
     /** Enfileira o texto de um ditado; ignora texto vazio. */
     fun enqueue(text: String, createdAtMs: Long = System.currentTimeMillis()) {
-        val target = file ?: return
+        val target = dir ?: return
         if (append(target, text, createdAtMs)) {
             KeyboardDiary.log("history queued (${text.trim().length} chars)")
         }
     }
 
-    /** Acrescenta a linha em [target]; devolve se algo foi gravado. */
+    /** Grava um arquivo em [target]; devolve se algo foi gravado. */
     @Synchronized
-    internal fun append(target: File, text: String, createdAtMs: Long, maxLines: Int = MAX_LINES): Boolean {
+    internal fun append(
+        target: File,
+        text: String,
+        createdAtMs: Long,
+        maxFiles: Int = MAX_FILES,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
         return try {
             val trimmed = text.trim()
             if (trimmed.isEmpty()) return false
-            val line = JSONObject().put("final_text", trimmed).put("created_at", createdAtMs).toString()
-            target.appendText(line + "\n")
-            val lines = target.readLines()
-            if (lines.size > maxLines) {
-                val kept = lines.subList(lines.size - maxLines, lines.size)
-                target.writeText(kept.joinToString("\n", postfix = "\n"))
+            target.mkdirs()
+            val base = "$createdAtMs-${UUID.randomUUID()}"
+            val tmp = File(target, "$base.tmp")
+            tmp.writeText(JSONObject().put("final_text", trimmed).put("created_at", createdAtMs).toString())
+            if (!tmp.renameTo(File(target, "$base.json"))) {
+                tmp.delete()
+                return false
             }
+            cleanup(target, maxFiles, nowMs)
             true
         } catch (_: Throwable) {
             false
+        }
+    }
+
+    private fun cleanup(target: File, maxFiles: Int, nowMs: Long) {
+        try {
+            val files = target.listFiles() ?: return
+            files.filter { it.name.endsWith(".tmp") && nowMs - it.lastModified() > STALE_TMP_MS }
+                .forEach { it.delete() }
+            val json = files.filter { it.name.endsWith(".json") }.sortedBy { it.name }
+            if (json.size > maxFiles) json.take(json.size - maxFiles).forEach { it.delete() }
+        } catch (_: Throwable) {
         }
     }
 }

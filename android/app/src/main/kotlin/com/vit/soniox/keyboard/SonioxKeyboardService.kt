@@ -479,20 +479,18 @@ class SonioxKeyboardService : InputMethodService() {
         state = State.Connecting
         render()
 
-        // Texto desta sessão que já foi para o campo. Vive na closure: cada
-        // sessão tem o seu, então um `finished` repetido (stop + onClosed) ou
-        // atrasado de uma sessão antiga nunca mistura nem duplica; o flush
-        // pega e zera, logo só a primeira chamada grava.
-        val committed = StringBuilder()
+        // Texto final desta sessão (o que o Soniox entregou, aceito ou não pelo
+        // campo). Vive na closure: cada sessão tem o seu, então um `finished`
+        // repetido (stop + onClosed) ou atrasado de uma sessão antiga nunca
+        // mistura nem duplica; o flush pega e zera, logo só grava uma vez.
+        val history = SessionHistoryBuffer { KeyboardHistoryOutbox.enqueue(it) }
         var ended = false
-        val flush = {
-            val text = committed.toString()
-            committed.setLength(0)
-            KeyboardHistoryOutbox.enqueue(text)
-        }
+        val flush = { history.flush() }
+        flushHistory?.invoke()
         flushHistory = flush
+        var thisSession: DictationSession? = null
 
-        dictation = DictationSession(this, session) { update ->
+        val created = DictationSession(this, session) { update ->
             if (update.connected) {
                 state = State.Listening
                 render()
@@ -510,8 +508,11 @@ class SonioxKeyboardService : InputMethodService() {
             update.finalText?.let { text ->
                 // Finais são deltas: cada evento traz só o que acabou de virar
                 // final, então concatenar no campo é o certo.
-                if (currentInputConnection?.commitText(text, 1) == true) committed.append(text)
-                // Final tardio, depois do fim da sessão: grava já.
+                currentInputConnection?.commitText(text, 1)
+                history.onFinal(text)
+                // Final tardio, depois do fim da sessão: vira uma segunda
+                // entrada própria no histórico (perder texto é pior que
+                // partir em duas).
                 if (ended) flush()
                 preview = ""
                 render()
@@ -520,15 +521,22 @@ class SonioxKeyboardService : InputMethodService() {
                 ended = true
                 flush()
                 if (flushHistory === flush) flushHistory = null
-                dictation?.release()
-                dictation = null
-                if (state != State.Error) state = State.Idle
-                preview = ""
-                nothingToTranslate = false
-                render()
-                stopForegroundQuietly()
+                // `finished` repetido de uma sessão antiga não pode soltar uma
+                // sessão NOVA iniciada no meio.
+                if (dictation === thisSession) {
+                    dictation?.release()
+                    dictation = null
+                    if (state != State.Error) state = State.Idle
+                    preview = ""
+                    nothingToTranslate = false
+                    render()
+                    stopForegroundQuietly()
+                }
             }
-        }.also { it.start() }
+        }
+        thisSession = created
+        dictation = created
+        created.start()
     }
 
     private fun stopDictation() {

@@ -10,15 +10,15 @@ import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 
 /// Importa para o histórico o que o teclado Android (Kotlin) ditou.
 ///
-/// O teclado não abre o SQLite do app: ele acrescenta uma linha JSON
-/// (`{"final_text":..., "created_at":<ms>}`) em `keyboard_history_outbox.jsonl`
-/// no `filesDir` (= `getApplicationSupportDirectory()` no Android). Aqui o
-/// arquivo é renomeado para `.importing` (o teclado volta a acrescentar num
-/// arquivo novo, então nenhuma linha se perde), as linhas viram registros e o
-/// `.importing` só é apagado depois que todos os inserts deram certo.
+/// O teclado não abre o SQLite do app: grava UM arquivo
+/// `<createdAtMs>-<uuid>.json` (`{"final_text":..., "created_at":<ms>}`) em
+/// `keyboard_history/` no `filesDir` (= `getApplicationSupportDirectory()` no
+/// Android), escrito em `.tmp` e renomeado. Aqui só se lê `*.json` (nunca
+/// `.tmp`), na ordem do nome: lê, insere, apaga. Se um insert falha, para e
+/// deixa aquele arquivo e os seguintes para a próxima vez, então nada se perde
+/// nem se duplica.
 class KeyboardHistoryImporter {
-  static const outboxName = 'keyboard_history_outbox.jsonl';
-  static const importingName = 'keyboard_history_outbox.importing';
+  static const dirName = 'keyboard_history';
 
   final Future<Directory> Function() _directory;
   final TranscriptionRepository Function() _repository;
@@ -47,40 +47,36 @@ class KeyboardHistoryImporter {
   }
 
   Future<int> _import() async {
-    final dir = await _directory();
-    final outbox = File('${dir.path}/$outboxName');
-    final importing = File('${dir.path}/$importingName');
-    var count = 0;
+    final base = await _directory();
+    final dir = Directory('${base.path}/$dirName');
+    if (!await dir.exists()) return 0;
 
-    // Sobra de uma execução interrompida: entra primeiro.
-    if (await importing.exists()) {
-      count += await _importFile(importing);
-    }
-    if (await outbox.exists()) {
-      await outbox.rename(importing.path);
-      count += await _importFile(importing);
+    final files = <File>[
+      for (final e in await dir.list().toList())
+        if (e is File && e.path.endsWith('.json')) e,
+    ]..sort((a, b) => a.path.compareTo(b.path));
+
+    var count = 0;
+    for (final file in files) {
+      try {
+        final record = _parse(await file.readAsString());
+        if (record != null) {
+          _repository().insert(record);
+          count++;
+        }
+        await file.delete();
+      } catch (e) {
+        debugPrint('[KeyboardHistoryImporter] parando em ${file.path}: $e');
+        break;
+      }
     }
     return count;
   }
 
-  Future<int> _importFile(File file) async {
-    final lines = await file.readAsLines();
-    final repo = _repository();
-    var count = 0;
-    for (final line in lines) {
-      final record = _parse(line);
-      if (record == null) continue;
-      repo.insert(record);
-      count++;
-    }
-    await file.delete();
-    return count;
-  }
-
-  TranscriptionRecord? _parse(String line) {
-    if (line.trim().isEmpty) return null;
+  /// `null` para arquivo malformado (é apagado sem inserir).
+  TranscriptionRecord? _parse(String content) {
     try {
-      final map = jsonDecode(line);
+      final map = jsonDecode(content);
       if (map is! Map) return null;
       final text = map['final_text'];
       final ms = map['created_at'];

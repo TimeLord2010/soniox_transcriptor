@@ -6,47 +6,63 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class KeyboardHistoryOutboxTest {
-    private fun tmp(): File = File.createTempFile("outbox", ".jsonl").also { it.delete() }
+    private fun tmpDir(): File = Files.createTempDirectory("outbox").toFile()
+    private fun jsons(d: File) = d.listFiles()!!.filter { it.name.endsWith(".json") }.sortedBy { it.name }
 
     @Test
-    fun appendsTrimmedJsonLine() {
-        val f = tmp()
-        assertTrue(KeyboardHistoryOutbox.append(f, "  olá mundo \n", 1234L))
-        val obj = JSONObject(f.readLines().single())
+    fun writesOneJsonFileAndNoTmp() {
+        val d = tmpDir()
+        assertTrue(KeyboardHistoryOutbox.append(d, "  olá mundo \n", 1234L))
+        assertTrue(d.listFiles()!!.none { it.name.endsWith(".tmp") })
+        val f = jsons(d).single()
+        assertTrue(f.name.startsWith("1234-"))
+        val obj = JSONObject(f.readText())
         assertEquals("olá mundo", obj.getString("final_text"))
         assertEquals(1234L, obj.getLong("created_at"))
-        f.delete()
+        d.deleteRecursively()
     }
 
     @Test
     fun ignoresBlankText() {
-        val f = tmp()
-        assertFalse(KeyboardHistoryOutbox.append(f, "   \n", 1L))
-        assertFalse(f.exists())
+        val d = tmpDir()
+        assertFalse(KeyboardHistoryOutbox.append(d, "   \n", 1L))
+        assertEquals(0, d.listFiles()!!.size)
+        d.deleteRecursively()
     }
 
     @Test
-    fun capDropsOldest() {
-        val f = tmp()
-        for (i in 1..7) KeyboardHistoryOutbox.append(f, "t$i", i.toLong(), maxLines = 3)
-        val texts = f.readLines().map { JSONObject(it).getString("final_text") }
+    fun capDeletesOldest() {
+        val d = tmpDir()
+        for (i in 1..7) KeyboardHistoryOutbox.append(d, "t$i", i.toLong(), maxFiles = 3)
+        val texts = jsons(d).map { JSONObject(it.readText()).getString("final_text") }
         assertEquals(listOf("t5", "t6", "t7"), texts)
-        f.delete()
+        d.deleteRecursively()
     }
 
     @Test
-    fun escapesNewlinesAndQuotes() {
-        val f = tmp()
-        KeyboardHistoryOutbox.append(f, "a\n\"b\"", 1L)
-        assertEquals(1, f.readLines().size)
-        assertEquals("a\n\"b\"", JSONObject(f.readLines().single()).getString("final_text"))
-        f.delete()
+    fun deletesStaleTmpOnly() {
+        val d = tmpDir()
+        val old = File(d, "1-a.tmp").apply { writeText("x"); setLastModified(0L) }
+        val fresh = File(d, "2-b.tmp").apply { writeText("x") }
+        KeyboardHistoryOutbox.append(d, "t", 3L)
+        assertFalse(old.exists())
+        assertTrue(fresh.exists())
+        d.deleteRecursively()
+    }
+
+    @Test
+    fun keepsNewlinesAndQuotes() {
+        val d = tmpDir()
+        KeyboardHistoryOutbox.append(d, "a\n\"b\"", 1L)
+        assertEquals("a\n\"b\"", JSONObject(jsons(d).single().readText()).getString("final_text"))
+        d.deleteRecursively()
     }
 
     @Test
     fun neverThrowsOnUnwritablePath() {
-        assertFalse(KeyboardHistoryOutbox.append(File("/nonexistent-dir/x/y.jsonl"), "x", 1L))
+        assertFalse(KeyboardHistoryOutbox.append(File("/proc/nonexistent/x"), "x", 1L))
     }
 }
