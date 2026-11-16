@@ -166,7 +166,8 @@ class _AndroidKeyboardSetterState extends State<AndroidKeyboardSetter>
               const Text(
                 'O ditado escreve no campo do app em foco, com os idiomas, '
                 'termos, contexto e tradução do perfil ativo. Este teclado é '
-                'de ditado: o botão "abc" devolve o teclado normal.',
+                'de ditado: para voltar ao teclado normal, use o botão de troca de '
+                'teclado do Android, na parte de baixo da tela.',
                 style: TextStyle(
                   fontSize: 12,
                   color: CupertinoColors.tertiaryLabel,

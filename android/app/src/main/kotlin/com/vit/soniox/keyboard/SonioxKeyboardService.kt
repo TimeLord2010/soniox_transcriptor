@@ -21,7 +21,6 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -34,8 +33,8 @@ import android.widget.TextView
  * termos, contexto, tradução) chega pelo JSON que o app publica nas
  * preferências compartilhadas; ver [KeyboardSession].
  *
- * Nenhuma tecla de letra: o teclado é de DITADO. O botão "abc" troca para o
- * teclado normal do aparelho, que continua sendo o caminho para digitar.
+ * Nenhuma tecla de letra: o teclado é de DITADO. Para digitar, troque para o
+ * teclado normal do aparelho pelo botão de troca de teclado do próprio Android.
  */
 class SonioxKeyboardService : InputMethodService() {
 
@@ -172,8 +171,6 @@ class SonioxKeyboardService : InputMethodService() {
         }
         addView(statusView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
-        addView(smallButton("abc") { switchToLetterKeyboard() })
-        addView(smallButton("⌄") { requestHideSelf(0) })
     }
 
     private fun previewLine(): View = TextView(this).apply {
@@ -230,17 +227,6 @@ class SonioxKeyboardService : InputMethodService() {
         addView(spaceView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
     }
 
-    private fun smallButton(label: String, action: () -> Unit): TextView =
-        TextView(this).apply {
-            text = label
-            textSize = 13f
-            gravity = Gravity.CENTER
-            setTextColor(secondaryColor())
-            setPadding(dp(12), dp(6), dp(12), dp(6))
-            setOnClickListener { action() }
-            isClickable = true
-            contentDescription = label
-        }
 
     private fun squareButton(label: String, action: () -> Unit): TextView =
         TextView(this).apply {
@@ -460,16 +446,6 @@ class SonioxKeyboardService : InputMethodService() {
         val connection = currentInputConnection ?: return
         connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
-    }
-
-    private fun switchToLetterKeyboard() {
-        val manager = getSystemService(InputMethodManager::class.java)
-        val switched = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            switchToNextInputMethod(false)
-        } else {
-            false
-        }
-        if (!switched) manager?.showInputMethodPicker()
     }
 
     // MARK: Serviço em primeiro plano (microfone)
