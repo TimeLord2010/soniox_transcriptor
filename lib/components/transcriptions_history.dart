@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import '../models/transcription_record.dart';
 import '../providers/history_provider.dart';
 import '../repositories/transcription_repository.dart';
+import 'history_dates.dart';
 import 'styles/ui.dart';
 
 class TranscriptionsHistory extends ConsumerWidget {
@@ -55,13 +56,48 @@ class TranscriptionsHistory extends ConsumerWidget {
         ),
       );
     }
+    final entries = _groupedByDay(history);
     return ListView.builder(
-      itemCount: history.length,
+      itemCount: entries.length,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
       itemBuilder: (context, index) {
-        return _HistoryItem(record: history[index]);
+        final entry = entries[index];
+        final item = _HistoryItem(record: entry.record);
+        final label = entry.dayLabel;
+        if (label == null) return item;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+              child: Text(label, style: sectionLabelStyle),
+            ),
+            item,
+          ],
+        );
       },
     );
+  }
+
+  /// Agrupa por dia: a data vira cabeçalho, uma vez, no primeiro registro
+  /// daquele dia (a lista vem do mais novo para o mais antigo).
+  List<_Entry> _groupedByDay(List<TranscriptionRecord> history) {
+    final now = DateTime.now();
+    final entries = <_Entry>[];
+    DateTime? currentDay;
+    for (final record in history) {
+      final created = record.createdAt;
+      final day = DateTime(created.year, created.month, created.day);
+      final isNewDay = day != currentDay;
+      if (isNewDay) currentDay = day;
+      entries.add(
+        _Entry(
+          record,
+          dayLabel: isNewDay ? historyDayLabel(created, now: now) : null,
+        ),
+      );
+    }
+    return entries;
   }
 
   void _clearHistory(BuildContext context, WidgetRef ref) {
@@ -115,7 +151,7 @@ class _HistoryItem extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                formatTime(record.createdAt),
+                historyTime(record.createdAt),
                 style: const TextStyle(
                   fontSize: 12,
                   color: CupertinoColors.secondaryLabel,
@@ -141,4 +177,10 @@ class _HistoryItem extends StatelessWidget {
   }
 }
 
-String formatTime(DateTime dt) => dt.toIso8601String();
+/// Registro com o cabeçalho do dia que abre o grupo, quando é o primeiro dele.
+class _Entry {
+  const _Entry(this.record, {this.dayLabel});
+
+  final TranscriptionRecord record;
+  final String? dayLabel;
+}
