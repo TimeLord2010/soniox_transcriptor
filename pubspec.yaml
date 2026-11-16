@@ -1,7 +1,7 @@
 name: soniox_transcriptor
 description: 'A new Flutter project.'
 publish_to: 'none'
-version: 0.3.3+12
+version: 0.3.4+13
 
 environment:
   sdk: ^3.11.5
