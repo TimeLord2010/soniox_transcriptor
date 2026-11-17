@@ -75,7 +75,9 @@ class _MainPageState extends ConsumerState<MainPage>
   int currentPage = 0;
 
   /// Traz para o histórico o que o teclado Android ditou fora do app.
-  final _keyboardHistory = KeyboardHistoryImporter();
+  late final _keyboardHistory = KeyboardHistoryImporter(
+    onReferencesImported: () => _costSync?.sessionEnded(),
+  );
 
   Future<void> _importKeyboardHistory() async {
     final imported = await _keyboardHistory.run();

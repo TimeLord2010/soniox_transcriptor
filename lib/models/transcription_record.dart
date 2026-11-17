@@ -23,7 +23,7 @@ class TranscriptionRecord {
   final int? audioDurationMs;
 
   /// `client_reference_id` enviado ao Soniox na sessão: é a chave para achar o
-  /// custo no log de uso. `null` nos registros antigos e nos do teclado.
+  /// custo no log de uso. `null` nos registros antigos e nos do teclado anteriores a este campo.
   final String? clientReferenceId;
 
   /// Custo exato (1e-10 US$) e tokens, vindos do log de uso. `null` até chegar.

@@ -27,10 +27,17 @@ object KeyboardHistoryOutbox {
         }
     }
 
-    /** Enfileira o texto de um ditado; ignora texto vazio. */
-    fun enqueue(text: String, createdAtMs: Long = System.currentTimeMillis()) {
+    /**
+     * Enfileira o texto de um ditado. Texto vazio só entra com [clientReferenceId]
+     * (sessão que gravou áudio sem texto: o Soniox cobra mesmo assim).
+     */
+    fun enqueue(
+        text: String,
+        createdAtMs: Long = System.currentTimeMillis(),
+        clientReferenceId: String? = null,
+    ) {
         val target = dir ?: return
-        if (append(target, text, createdAtMs)) {
+        if (append(target, text, createdAtMs, clientReferenceId = clientReferenceId)) {
             KeyboardDiary.log("history queued (${text.trim().length} chars)")
         }
     }
@@ -43,14 +50,18 @@ object KeyboardHistoryOutbox {
         createdAtMs: Long,
         maxFiles: Int = MAX_FILES,
         nowMs: Long = System.currentTimeMillis(),
+        clientReferenceId: String? = null,
     ): Boolean {
         return try {
             val trimmed = text.trim()
-            if (trimmed.isEmpty()) return false
+            if (trimmed.isEmpty() && clientReferenceId == null) return false
             target.mkdirs()
             val base = "$createdAtMs-${UUID.randomUUID()}"
             val tmp = File(target, "$base.tmp")
-            tmp.writeText(JSONObject().put("final_text", trimmed).put("created_at", createdAtMs).toString())
+            val json = JSONObject().put("final_text", trimmed).put("created_at", createdAtMs)
+            // Entrada antiga/sem sessão Soniox não tem o campo: o app aceita as duas.
+            if (clientReferenceId != null) json.put("client_reference_id", clientReferenceId)
+            tmp.writeText(json.toString())
             if (!tmp.renameTo(File(target, "$base.json"))) {
                 tmp.delete()
                 return false

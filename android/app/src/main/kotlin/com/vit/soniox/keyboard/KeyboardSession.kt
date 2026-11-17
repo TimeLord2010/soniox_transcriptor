@@ -34,7 +34,7 @@ data class KeyboardSession(
      * Diferença deliberada: diarização sempre desligada. O teclado escreve em
      * um campo de texto, onde o rótulo "Falante N:" não tem para onde ir.
      */
-    fun toSonioxConfig(): JSONObject {
+    fun toSonioxConfig(clientReferenceId: String? = null): JSONObject {
         // A chave NÃO vai no `start`: autentica a CONEXÃO (header do upgrade).
         // O Soniox recusa conexão sem chave a partir de 15/01/2027.
         val config = JSONObject()
@@ -47,6 +47,12 @@ data class KeyboardSession(
             .put("audio_format", AUDIO_FORMAT)
             .put("sample_rate", SAMPLE_RATE)
             .put("num_channels", NUM_CHANNELS)
+
+        // Identifica a sessão no log de uso do Soniox: é como o app acha o custo
+        // exato dela (mesmo campo que `buildSessionConfig` no Dart).
+        if (!clientReferenceId.isNullOrBlank()) {
+            config.put("client_reference_id", clientReferenceId)
+        }
 
         if (contextText.isNotBlank() || terms.isNotEmpty()) {
             val context = JSONObject()

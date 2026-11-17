@@ -34,6 +34,19 @@ class KeyboardHistoryOutboxTest {
     }
 
     @Test
+    fun writesClientReferenceIdAndKeepsEmptyTextOnlyWithIt() {
+        val d = tmpDir()
+        assertTrue(KeyboardHistoryOutbox.append(d, "oi", 1L, clientReferenceId = "ref-1"))
+        assertTrue(KeyboardHistoryOutbox.append(d, "", 2L, clientReferenceId = "ref-2"))
+        assertFalse(KeyboardHistoryOutbox.append(d, "", 3L))
+        val objs = jsons(d).map { JSONObject(it.readText()) }
+        assertEquals("ref-1", objs[0].getString("client_reference_id"))
+        assertEquals("ref-2", objs[1].getString("client_reference_id"))
+        assertEquals("", objs[1].getString("final_text"))
+        d.deleteRecursively()
+    }
+
+    @Test
     fun capDeletesOldest() {
         val d = tmpDir()
         for (i in 1..7) KeyboardHistoryOutbox.append(d, "t$i", i.toLong(), maxFiles = 3)

@@ -24,9 +24,14 @@ class KeyboardHistoryImporter {
   final TranscriptionRepository Function() _repository;
   final bool _enabled;
 
+  /// Chamado quando entraram registros com `client_reference_id`: o custo deles
+  /// está pendente e deve ser buscado (mesmo fluxo das sessões do app).
+  final VoidCallback? onReferencesImported;
+
   Future<int>? _inFlight;
 
   KeyboardHistoryImporter({
+    this.onReferencesImported,
     Future<Directory> Function()? directory,
     TranscriptionRepository Function()? repository,
     bool? enabled,
@@ -57,12 +62,14 @@ class KeyboardHistoryImporter {
     ]..sort((a, b) => a.path.compareTo(b.path));
 
     var count = 0;
+    var hasReferences = false;
     for (final file in files) {
       try {
         final record = _parse(await file.readAsString());
         if (record != null) {
           _repository().insert(record);
           count++;
+          if (record.clientReferenceId != null) hasReferences = true;
         }
         await file.delete();
       } catch (e) {
@@ -70,6 +77,7 @@ class KeyboardHistoryImporter {
         break;
       }
     }
+    if (hasReferences) onReferencesImported?.call();
     return count;
   }
 
@@ -80,11 +88,18 @@ class KeyboardHistoryImporter {
       if (map is! Map) return null;
       final text = map['final_text'];
       final ms = map['created_at'];
-      if (text is! String || text.trim().isEmpty || ms is! num) return null;
+      if (text is! String || ms is! num) return null;
+      // Entradas antigas não têm `client_reference_id`: ficam "sem custo".
+      final rawId = map['client_reference_id'];
+      final referenceId = rawId is String && rawId.isNotEmpty ? rawId : null;
+      // Sem texto só vale com referência: é a sessão que o Soniox cobrou sem
+      // produzir texto (o registro fica oculto e soma o custo real, como no app).
+      if (text.trim().isEmpty && referenceId == null) return null;
       return TranscriptionRecord(
         finalText: text,
         nonFinalText: '',
         createdAt: DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
+        clientReferenceId: referenceId,
       );
     } catch (_) {
       return null;

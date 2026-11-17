@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class DictationSession(
     private val context: Context,
     private val session: KeyboardSession,
+    /** UUID desta sessão, enviado ao Soniox como `client_reference_id`. */
+    val clientReferenceId: String,
     private val listener: (Update) -> Unit,
 ) {
     /** Estado observável da sessão, sempre emitido na thread principal. */
@@ -50,6 +52,12 @@ class DictationSession(
     private val main = Handler(Looper.getMainLooper())
     private val stopper = AtomicBoolean(false)
     private val audioRunning = AtomicBoolean(false)
+    private val closing = AtomicBoolean(false)
+    @Volatile private var failed = false
+
+    /** O microfone chegou a abrir: só então o Soniox registra/cobra a sessão. */
+    @Volatile var audioCaptured = false
+        private set
     private var socket: WebSocket? = null
     private var recorder: AudioRecord? = null
     private var audioThread: Thread? = null
@@ -96,10 +104,18 @@ class DictationSession(
         // `finalize` força os tokens pendentes a virarem finais; sem esperar por
         // eles o fim da frase falada se perde.
         open.send(FINALIZE)
-        main.postDelayed({
-            open.close(NORMAL_CLOSURE, "bye")
-            emit(Update(finished = true))
-        }, FINALIZE_GRACE_MS)
+        // Fim do stream pelo protocolo: frame de texto vazio e espera da mensagem
+        // `finished` — só assim a sessão conta como concluída no log de uso.
+        // Se o Soniox não confirmar, fecha mesmo assim depois do prazo.
+        open.send("")
+        main.postDelayed({ closeNow(open, "timeout") }, if (failed) FINALIZE_GRACE_MS else FINISH_TIMEOUT_MS)
+    }
+
+    /** Fecha o socket uma única vez e avisa que acabou. */
+    private fun closeNow(open: WebSocket, reason: String) {
+        if (closing.getAndSet(true)) return
+        open.close(NORMAL_CLOSURE, reason)
+        emit(Update(finished = true))
     }
 
     fun release() {
@@ -146,6 +162,7 @@ class DictationSession(
         recorder = record
         audioRunning.set(true)
         record.startRecording()
+        audioCaptured = true
         Log.d(TAG, "microfone aberto: ${record.sampleRate}Hz chunk=${CHUNK_BYTES}B")
 
         audioThread = Thread({
@@ -191,7 +208,7 @@ class DictationSession(
     private inner class SocketListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Log.d(TAG, "ws aberto: enviando config e abrindo microfone")
-            webSocket.send(session.toSonioxConfig().toString())
+            webSocket.send(session.toSonioxConfig(clientReferenceId).toString())
             emit(Update(connected = true))
             startAudio()
         }
@@ -236,12 +253,22 @@ class DictationSession(
         if (payload.has("error_code")) {
             val code = payload.optString("error_code", "?")
             val message = payload.optString("error_message", payload.optString("error_type", ""))
+            failed = true
             emit(Update(error = "Erro Soniox $code: $message"))
             main.post { stop() }
             return
         }
 
-        val tokens = payload.optJSONArray("tokens") ?: return
+        val tokens = payload.optJSONArray("tokens")
+        if (tokens != null) handleTokens(tokens)
+        // `finished`: o Soniox entregou tudo e concluiu a sessão. Vem depois dos
+        // tokens, então o texto final já foi emitido na ordem certa.
+        if (payload.optBoolean("finished", false)) {
+            socket?.let { closeNow(it, "finished") }
+        }
+    }
+
+    private fun handleTokens(tokens: org.json.JSONArray) {
         val finalText = StringBuilder()
         val preview = StringBuilder()
         var nothingToTranslate = false
@@ -290,6 +317,8 @@ class DictationSession(
         /** Marcadores do protocolo (`<end>`, `<fin>`) — nunca texto do ditado. */
         private val CONTROL_TOKEN = Regex("^<[a-z0-9_]+>$")
         private const val FINALIZE_GRACE_MS = 1500L
+        /** Prazo para o `finished` do Soniox (igual ao do app). */
+        private const val FINISH_TIMEOUT_MS = 10_000L
         private const val NORMAL_CLOSURE = 1000
     }
 }

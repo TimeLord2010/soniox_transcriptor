@@ -483,14 +483,22 @@ class SonioxKeyboardService : InputMethodService() {
         // campo). Vive na closure: cada sessão tem o seu, então um `finished`
         // repetido (stop + onClosed) ou atrasado de uma sessão antiga nunca
         // mistura nem duplica; o flush pega e zera, logo só grava uma vez.
-        val history = SessionHistoryBuffer { KeyboardHistoryOutbox.enqueue(it) }
+        val referenceId = java.util.UUID.randomUUID().toString()
+        // A referência vai só no primeiro registro da sessão: um final tardio
+        // (segundo registro) com o mesmo id contaria o custo duas vezes.
+        var referenceUsed = false
+        val history = SessionHistoryBuffer { text ->
+            val id = if (referenceUsed) null else referenceId
+            referenceUsed = true
+            KeyboardHistoryOutbox.enqueue(text, clientReferenceId = id)
+        }
         var ended = false
         val flush = { history.flush() }
         flushHistory?.invoke()
         flushHistory = flush
         var thisSession: DictationSession? = null
 
-        val created = DictationSession(this, session) { update ->
+        val created = DictationSession(this, session, referenceId) { update ->
             if (update.connected) {
                 state = State.Listening
                 render()
@@ -518,8 +526,16 @@ class SonioxKeyboardService : InputMethodService() {
                 render()
             }
             if (update.finished) {
+                val firstEnd = !ended
                 ended = true
                 flush()
+                // Sessão que gravou áudio mas não produziu texto: o Soniox cobra
+                // mesmo assim, então vai um registro só com a referência (o app
+                // o esconde da lista e soma o custo).
+                if (firstEnd && !referenceUsed && thisSession?.audioCaptured == true) {
+                    referenceUsed = true
+                    KeyboardHistoryOutbox.enqueue("", clientReferenceId = referenceId)
+                }
                 if (flushHistory === flush) flushHistory = null
                 // `finished` repetido de uma sessão antiga não pode soltar uma
                 // sessão NOVA iniciada no meio.

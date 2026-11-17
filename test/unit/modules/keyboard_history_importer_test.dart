@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/keyboard_history_importer.dart';
+import 'package:soniox_transcriptor/repositories/history_store.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 
 import '../../helpers/database.dart';
@@ -82,6 +83,56 @@ void main() {
     expect(repo.getAll().map((r) => r.finalText), ['ok']);
     expect(box.listSync(), isEmpty);
   });
+
+  test('carries client_reference_id; old entries stay without it', () async {
+    var notified = 0;
+    importer = KeyboardHistoryImporter(
+      directory: () async => base,
+      enabled: true,
+      onReferencesImported: () => notified++,
+    );
+    put('1-a.json', jsonEncode({'final_text': 'velho', 'created_at': 1}));
+    put(
+      '2-b.json',
+      jsonEncode({
+        'final_text': 'novo',
+        'created_at': 2,
+        'client_reference_id': 'ref-123',
+      }),
+    );
+
+    expect(await importer.run(), 2);
+
+    final byText = {for (final r in repo.getAll()) r.finalText: r};
+    expect(byText['novo']!.clientReferenceId, 'ref-123');
+    expect(byText['novo']!.costState, CostState.pending);
+    expect(byText['velho']!.clientReferenceId, isNull);
+    expect(byText['velho']!.costState, CostState.unavailable);
+    expect(notified, 1);
+  });
+
+  test(
+    'empty text is imported only with a reference (hidden record)',
+    () async {
+      put(
+        '1-a.json',
+        jsonEncode({
+          'final_text': '',
+          'created_at': 1,
+          'client_reference_id': 'ref-empty',
+        }),
+      );
+      put('2-b.json', entry('', 2));
+
+      expect(await importer.run(), 1);
+
+      expect(repo.getAll(), isEmpty); // fora da lista
+      final pending = GetIt.I.get<HistoryStore>().pendingCosts();
+      expect(pending.single.isHidden, isTrue);
+      expect(pending.single.clientReferenceId, 'ref-empty');
+      expect(box.listSync(), isEmpty);
+    },
+  );
 
   test('missing dir returns 0', () async {
     box.deleteSync(recursive: true);
