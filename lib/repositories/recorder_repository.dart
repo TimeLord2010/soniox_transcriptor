@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:record/record.dart';
+import 'package:soniox_transcriptor/modules/input_device_service.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
 
 /// Microphone capture for the transcription session.
@@ -51,8 +52,17 @@ class RecorderRepository {
   /// User-facing failures (nothing is thrown to the caller).
   Stream<String> get errors => _errorController.stream;
 
-  List<InputDevice> devices = [];
-  InputDevice? selectedDevice;
+  /// Lista de entradas e escolha do usuário: fonte única, mantida em dia
+  /// enquanto alguém a observa (veja [InputDeviceService.watch]).
+  late final InputDeviceService deviceService = InputDeviceService(
+    fetch: fetchInputDevices,
+  );
+
+  List<InputDevice> get devices => deviceService.devices;
+
+  /// Dispositivo efetivo: a escolha do usuário se ainda estiver conectada;
+  /// `null` usa o microfone padrão do sistema.
+  InputDevice? get selectedDevice => deviceService.selected;
 
   /// Mensagem única de microfone negado. O texto por sistema mora no
   /// [PlatformSupport] — aqui era uma cópia da decisão de plataforma, e ela
@@ -60,16 +70,15 @@ class RecorderRepository {
   static String get permissionDeniedMessage =>
       PlatformSupport.micPermissionDeniedMessage;
 
+  /// Enumera as entradas no plugin. Nem toda plataforma expõe o enumerador;
+  /// aí a exceção sobe e o serviço mantém a lista anterior (o picker fica
+  /// desabilitado e a captura usa o microfone padrão).
+  @visibleForTesting
+  Future<List<InputDevice>> fetchInputDevices() => _record.listInputDevices();
+
+  /// Relê a lista agora (tela aberta, volta do app, antes de gravar).
   Future<void> listInputDevices() async {
-    try {
-      devices = await _record.listInputDevices();
-    } catch (error) {
-      // Nem toda plataforma expõe o enumerador; sem lista, o picker fica
-      // desabilitado e a captura usa o microfone padrão.
-      debugPrint('[recorder] listInputDevices falhou: $error');
-      devices = [];
-    }
-    debugPrint('Found devices: ${devices.map((x) => x.label).join(',')}');
+    await deviceService.refresh();
   }
 
   /// Pede a permissão de microfone antes da sessão. No Android é aqui que o
@@ -92,6 +101,15 @@ class RecorderRepository {
       _emitError(permissionDeniedMessage);
       return;
     }
+
+    // O microfone escolhido pode ter sido desplugado desde a última leitura:
+    // revalida antes de abrir, senão a captura tenta um dispositivo que não
+    // existe mais. Sem ele, [selectedDevice] já é o padrão do sistema.
+    await listInputDevices().timeout(
+      startTimeout,
+      onTimeout: () => debugPrint('[recorder] lista de entradas não respondeu'),
+    );
+    if (generation != _generation) return;
 
     String? lastFailure;
     for (var attempt = 1; attempt <= maxStartAttempts; attempt++) {
@@ -231,6 +249,7 @@ class RecorderRepository {
   }
 
   void dispose() {
+    deviceService.dispose();
     _stopCapture();
     _errorController.close();
   }

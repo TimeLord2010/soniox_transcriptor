@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:record/record.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
+import 'package:soniox_transcriptor/modules/input_device_service.dart';
 import 'package:soniox_transcriptor/modules/local_storage_module.dart';
 import 'package:soniox_transcriptor/providers/profile_providers.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
-import 'package:vit_dart_extensions/vit_dart_extensions.dart';
 
 class DevicePicker extends ConsumerStatefulWidget {
   const DevicePicker({super.key, required this.recorder});
@@ -18,31 +18,40 @@ class DevicePicker extends ConsumerStatefulWidget {
 }
 
 class _DevicePickerState extends ConsumerState<DevicePicker> {
-  List<InputDevice> _devices = [];
-  InputDevice? _selectedDevice;
-
   RecorderRepository get recorder => widget.recorder;
+  InputDeviceService get _service => recorder.deviceService;
 
   @override
   void initState() {
-    recorder.listInputDevices().then((_) {
-      // Enumerar dispositivo é assíncrono e no navegador é lento (só devolve
-      // rótulo depois da permissão de microfone): a aba pode ser trocada antes
-      // e aí o widget já saiu da árvore — setState depois de dispose derruba
-      // com `_DevicePickerState ... defunct, not mounted`.
-      if (!mounted) return;
-      setState(() {
-        _devices = recorder.devices;
-        _selectedDevice = recorder.selectedDevice;
-      });
-      _restoreSelectedDevice();
-    });
     super.initState();
+    // A preferência do perfil vale já; se o microfone não estiver conectado o
+    // efetivo é o padrão, e volta a valer quando ele reaparecer. A lista se
+    // atualiza sozinha (plugar/tirar) enquanto a tela está aberta; o
+    // ListenableBuilder do build só redesenha, então não há setState após
+    // dispose se a aba for trocada no meio da enumeração.
+    _service.setPreferredLabel(
+      LocalStorageModule.getSelectedDeviceLabel(
+        ref.read(activeProfileIdProvider),
+      ),
+    );
+    _service.watch();
+    recorder.listInputDevices();
+  }
+
+  @override
+  void dispose() {
+    _service.unwatch();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final label = _selectedDevice?.label ?? 'Padrão';
+    return ListenableBuilder(listenable: _service, builder: _buildRow);
+  }
+
+  Widget _buildRow(BuildContext context, Widget? _) {
+    final devices = _service.devices;
+    final label = _service.selected?.label ?? 'Padrão';
     // A linha é só o rótulo e o dispositivo escolhido — sem pill, sem chevron,
     // sem ícone. O botão existe apenas para dar toque e área de alvo; o texto
     // ocupa todo o espaço que sobra (é o que evita o corte em tela estreita).
@@ -54,7 +63,7 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
           child: CupertinoButton(
             padding: EdgeInsets.zero,
             minimumSize: Size.zero,
-            onPressed: _devices.isEmpty
+            onPressed: devices.isEmpty
                 ? null
                 : () => _showDevicePicker(context),
             // O CupertinoButton centraliza o filho: sem o Row alinhado ao fim o
@@ -83,11 +92,17 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
   }
 
   void _showDevicePicker(BuildContext context) {
-    final initialIndex = _selectedDevice == null
+    // Cópia do momento da abertura: a lista pode mudar com o sheet aberto, e
+    // o índice da roda tem que continuar apontando para o mesmo item.
+    final devices = List<InputDevice>.of(_service.devices);
+    if (devices.isEmpty) return;
+    final profileId = ref.read(activeProfileIdProvider);
+    final selectedId = _service.selected?.id;
+    final initialIndex = selectedId == null
         ? 0
-        : _devices
-              .indexWhere((d) => d.id == _selectedDevice!.id)
-              .clamp(0, _devices.length - 1);
+        : devices
+              .indexWhere((d) => d.id == selectedId)
+              .clamp(0, devices.length - 1);
     var pickerIndex = initialIndex;
 
     showCupertinoModalPopup<void>(
@@ -107,38 +122,14 @@ class _DevicePickerState extends ConsumerState<DevicePicker> {
             ),
             itemExtent: 36,
             onSelectedItemChanged: (i) => pickerIndex = i,
-            children: _devices
-                .map((d) => Center(child: Text(d.label)))
-                .toList(),
+            children: devices.map((d) => Center(child: Text(d.label))).toList(),
           ),
         ),
       ),
     ).then((_) {
-      final picked = _devices[pickerIndex];
-      setState(() => _selectedDevice = picked);
-      recorder.selectedDevice = picked;
-      LocalStorageModule.setSelectedDeviceLabel(
-        ref.read(activeProfileIdProvider),
-        picked.label,
-      );
+      final picked = devices[pickerIndex];
+      _service.select(picked);
+      LocalStorageModule.setSelectedDeviceLabel(profileId, picked.label);
     });
-  }
-
-  void _restoreSelectedDevice() {
-    final savedLabel = LocalStorageModule.getSelectedDeviceLabel(
-      ref.read(activeProfileIdProvider),
-    );
-    if (savedLabel == null) {
-      // Profile without a saved device: fall back to the system default.
-      setState(() => _selectedDevice = null);
-      recorder.selectedDevice = null;
-      return;
-    }
-
-    InputDevice? device = _devices.firstWhereOrNull((d) {
-      return d.label == savedLabel;
-    });
-    setState(() => _selectedDevice = device);
-    recorder.selectedDevice = device;
   }
 }
