@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/repositories/history_store_sqlite.dart';
 import 'package:soniox_transcriptor/repositories/transcription_repository.dart';
 
 import '../../helpers/database.dart';
@@ -109,24 +110,84 @@ void main() {
     expect(repo.getAll(), isEmpty);
   });
 
-  group('limite de registros', () {
-    test('guarda no máximo 100, descartando os mais antigos', () {
-      for (var i = 1; i <= 101; i++) {
-        repo.insert(recordAt(i, text: 'r$i'));
-      }
+  group('retenção de 90 dias', () {
+    test('remove só o que passou de 90 dias', () {
+      final now = DateTime(2026, 11, 17);
+      TranscriptionRecord at(Duration age, String t) => TranscriptionRecord(
+        finalText: t,
+        nonFinalText: '',
+        createdAt: now.subtract(age),
+      );
+      repo.insert(at(const Duration(days: 89), 'dentro'));
+      repo.insert(at(const Duration(days: 91), 'fora'));
+      expect(repo.getAll(), hasLength(2));
 
-      final all = repo.getAll();
-      expect(all, hasLength(100));
-      expect(all.any((r) => r.finalText == 'r1'), isFalse);
-      expect(all.first.finalText, 'r101');
+      final removed = repo.pruneExpired(now: now);
+
+      expect(removed, 1);
+      expect(repo.getAll().map((r) => r.finalText), ['dentro']);
+      expect(repo.totals.totalChars, 6);
+    });
+  });
+
+  test('page devolve páginas corretas', () {
+    for (var i = 1; i <= 5; i++) {
+      repo.insert(recordAt(i, text: 'r$i'));
+    }
+
+    expect(repo.page(limit: 2).map((r) => r.finalText), ['r5', 'r4']);
+    expect(repo.page(limit: 2, offset: 2).map((r) => r.finalText), [
+      'r3',
+      'r2',
+    ]);
+    expect(repo.page(limit: 2, offset: 4).map((r) => r.finalText), ['r1']);
+  });
+
+  group('totais persistidos', () {
+    test('atualizam em insert, delete e deleteAll', () {
+      repo.insert(
+        TranscriptionRecord(
+          finalText: 'abcd',
+          nonFinalText: 'ef',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(60000),
+          audioDurationMs: 2000,
+        ),
+      );
+      repo.insert(recordAt(2, text: 'xy'));
+      expect(repo.totals.totalChars, 8);
+      expect(repo.totals.audioMs, 2000);
+      expect(repo.totals.recordsWithDuration, 1);
+      expect(repo.totals.recordsWithoutDuration, 1);
+
+      repo.delete(repo.getAll().firstWhere((r) => r.finalText == 'xy').id!);
+      expect(repo.totals.totalChars, 6);
+      expect(repo.totals.recordsWithoutDuration, 0);
+
+      repo.deleteAll();
+      expect(repo.totals.recordCount, 0);
+      expect(repo.totals.totalChars, 0);
     });
 
-    test('não descarta nada enquanto está abaixo do limite', () {
-      for (var i = 1; i <= 99; i++) {
-        repo.insert(recordAt(i));
-      }
+    test('banco antigo sem tabela de totais é migrado uma vez', () {
+      final old = sqlite3.openInMemory();
+      old.execute(
+        'CREATE TABLE transcriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+        'final_text TEXT NOT NULL, non_final_text TEXT NOT NULL, '
+        'created_at INTEGER NOT NULL)',
+      );
+      old.execute(
+        "INSERT INTO transcriptions (final_text, non_final_text, created_at) "
+        "VALUES ('abc', 'de', 1000)",
+      );
 
-      expect(repo.getAll(), hasLength(99));
+      final store = SqliteHistoryStore(old);
+
+      expect(store.totals.totalChars, 5);
+      expect(store.totals.recordsWithoutDuration, 1);
+      // Reabrir lê a linha persistida em vez de recalcular.
+      expect(SqliteHistoryStore(old).totals.totalChars, 5);
+      final row = old.select('SELECT * FROM history_totals').single;
+      expect(row['total_chars'], 5);
     });
   });
 }

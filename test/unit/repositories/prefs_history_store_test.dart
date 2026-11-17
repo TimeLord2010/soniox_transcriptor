@@ -81,14 +81,71 @@ void main() {
     expect(store.getAll(), isEmpty);
   });
 
-  test('deleteOldest descarta os mais antigos', () {
+  test('page devolve páginas do mais novo para o mais antigo', () {
     for (var i = 1; i <= 5; i++) {
       store.insert(recordAt(i, text: 'r$i'));
     }
 
-    store.deleteOldest(2);
+    expect(store.page(limit: 2).map((r) => r.finalText), ['r5', 'r4']);
+    expect(store.page(limit: 2, offset: 2).map((r) => r.finalText), [
+      'r3',
+      'r2',
+    ]);
+    expect(store.page(limit: 2, offset: 4).map((r) => r.finalText), ['r1']);
+    expect(store.page(limit: 2, offset: 6), isEmpty);
+  });
 
-    expect(store.getAll().map((r) => r.finalText), ['r5', 'r4', 'r3']);
+  test(
+    'totais: insert, delete, prune e limpar; persistem entre cargas',
+    () async {
+      store.insert(recordAt(1, text: 'aaaa'));
+      store.insert(
+        TranscriptionRecord(
+          finalText: 'bb',
+          nonFinalText: '',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(2 * 60000),
+          audioDurationMs: 5000,
+        ),
+      );
+      expect(store.totals.totalChars, 6);
+      expect(store.totals.audioMs, 5000);
+      expect(store.totals.recordsWithDuration, 1);
+      expect(store.totals.recordsWithoutDuration, 1);
+      await pumpEventQueue();
+
+      final reloaded = PrefsHistoryStore();
+      await reloaded.load();
+      expect(reloaded.totals.totalChars, 6);
+
+      // Poda tira o registro de 1 min (cutoff em 90 s).
+      expect(
+        reloaded.pruneOlderThan(DateTime.fromMillisecondsSinceEpoch(90000)),
+        1,
+      );
+      expect(reloaded.totals.totalChars, 2);
+      expect(reloaded.totals.recordsWithoutDuration, 0);
+
+      reloaded.delete(reloaded.getAll().single.id!);
+      expect(reloaded.totals.totalChars, 0);
+      expect(reloaded.totals.audioMs, 0);
+
+      reloaded.insert(recordAt(3, text: 'x'));
+      reloaded.deleteAll();
+      expect(reloaded.totals.totalChars, 0);
+      expect(reloaded.totals.recordCount, 0);
+    },
+  );
+
+  test('migração: sem totais salvos calcula uma vez dos registros', () async {
+    store.insert(recordAt(1, text: 'abc'));
+    await pumpEventQueue();
+    await currentPrefs.remove(PrefsHistoryStore.totalsKey);
+
+    final reloaded = PrefsHistoryStore();
+    await reloaded.load();
+
+    expect(reloaded.totals.totalChars, 3);
+    expect(reloaded.totals.recordsWithoutDuration, 1);
   });
 
   test('JSON corrompido não derruba o app: começa vazio', () async {
@@ -118,16 +175,21 @@ void main() {
   });
 
   group('com o repositório', () {
-    test('guarda no máximo 100 registros, descartando os mais antigos', () {
+    test('retenção de 90 dias remove só o que passou do limite', () {
       final repo = TranscriptionRepository(store: store);
-      for (var i = 1; i <= 101; i++) {
-        repo.insert(recordAt(i, text: 'r$i'));
-      }
+      final now = DateTime(2026, 11, 17);
+      TranscriptionRecord at(DateTime d, String t) =>
+          TranscriptionRecord(finalText: t, nonFinalText: '', createdAt: d);
+      repo.insert(at(now.subtract(const Duration(days: 91)), 'velho'));
+      repo.insert(at(now.subtract(const Duration(days: 89)), 'quase'));
+      repo.insert(at(now, 'hoje'));
 
-      final all = repo.getAll();
-      expect(all, hasLength(TranscriptionRepository.maxRecords));
-      expect(all.any((r) => r.finalText == 'r1'), isFalse);
-      expect(all.first.finalText, 'r101');
+      // Insert já podeu o de 91 dias (contado a partir do registro novo).
+      expect(repo.getAll().map((r) => r.finalText), ['hoje', 'quase']);
+
+      repo.pruneExpired(now: now.add(const Duration(days: 2)));
+      expect(repo.getAll().map((r) => r.finalText), ['hoje']);
+      expect(repo.totals.totalChars, 4);
     });
   });
 }

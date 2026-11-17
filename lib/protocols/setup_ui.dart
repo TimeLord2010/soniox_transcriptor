@@ -21,5 +21,7 @@ Future<void> _setupStorage() async {
   final historyStore = await openHistoryStore();
   GetIt.instance.registerSingleton<HistoryStore>(historyStore);
   var transcriptionRep = TranscriptionRepository(store: historyStore);
+  // Retenção de 3 meses: poda o que venceu enquanto o app esteve fechado.
+  transcriptionRep.pruneExpired();
   GetIt.instance.registerSingleton<TranscriptionRepository>(transcriptionRep);
 }

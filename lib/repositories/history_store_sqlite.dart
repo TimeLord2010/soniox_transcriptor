@@ -2,6 +2,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import '../models/history_summary.dart';
 import '../models/transcription_record.dart';
 import 'history_store.dart';
 
@@ -16,6 +17,18 @@ class SqliteHistoryStore implements HistoryStore {
       non_final_text TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       audio_duration_ms INTEGER
+    )
+  ''';
+
+  /// Linha única (id = 1) com os totais do histórico, atualizada a cada
+  /// mudança.
+  static const totalsSchema = '''
+    CREATE TABLE IF NOT EXISTS history_totals (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      total_chars INTEGER NOT NULL,
+      audio_ms INTEGER NOT NULL,
+      with_duration INTEGER NOT NULL,
+      without_duration INTEGER NOT NULL
     )
   ''';
 
@@ -39,9 +52,59 @@ class SqliteHistoryStore implements HistoryStore {
         'ALTER TABLE transcriptions ADD COLUMN audio_duration_ms INTEGER',
       );
     }
+    _db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transcriptions_created_at '
+      'ON transcriptions (created_at)',
+    );
+    _db.execute(totalsSchema);
+    _totals = _readTotals() ?? _migrateTotals();
   }
 
   final Database _db;
+  late HistoryTotals _totals;
+
+  @override
+  HistoryTotals get totals => _totals;
+
+  HistoryTotals? _readTotals() {
+    final rows = _db.select('SELECT * FROM history_totals WHERE id = 1');
+    if (rows.isEmpty) return null;
+    final row = rows.single;
+    return HistoryTotals(
+      totalChars: row['total_chars'] as int,
+      audioMs: row['audio_ms'] as int,
+      recordsWithDuration: row['with_duration'] as int,
+      recordsWithoutDuration: row['without_duration'] as int,
+    );
+  }
+
+  /// Primeira abertura depois da atualização: calcula uma vez a partir dos
+  /// registros que já existiam e grava; daí em diante só incremental.
+  HistoryTotals _migrateTotals() {
+    final totals = HistoryTotals.fromRecords(
+      _db
+          .select('SELECT * FROM transcriptions')
+          .map(TranscriptionRecord.fromMap),
+    );
+    _saveTotals(totals);
+    return totals;
+  }
+
+  void _saveTotals(HistoryTotals totals) {
+    _totals = totals;
+    final stmt = _db.prepare('''
+      INSERT OR REPLACE INTO history_totals
+        (id, total_chars, audio_ms, with_duration, without_duration)
+      VALUES (1, ?, ?, ?, ?)
+    ''');
+    stmt.execute([
+      totals.totalChars,
+      totals.audioMs,
+      totals.recordsWithDuration,
+      totals.recordsWithoutDuration,
+    ]);
+    stmt.close();
+  }
 
   @override
   Future<void> load() async {
@@ -61,6 +124,17 @@ class SqliteHistoryStore implements HistoryStore {
       record.audioDurationMs,
     ]);
     stmt.close();
+    _saveTotals(_totals.plus(record));
+  }
+
+  @override
+  List<TranscriptionRecord> page({required int limit, int offset = 0}) {
+    final result = _db.select(
+      'SELECT * FROM transcriptions ORDER BY created_at DESC, id DESC '
+      'LIMIT ? OFFSET ?',
+      [limit, offset],
+    );
+    return result.map(TranscriptionRecord.fromMap).toList();
   }
 
   @override
@@ -74,29 +148,37 @@ class SqliteHistoryStore implements HistoryStore {
 
   @override
   void delete(int id) {
+    final rows = _db.select('SELECT * FROM transcriptions WHERE id = ?', [id]);
+    if (rows.isEmpty) return;
     final stmt = _db.prepare('DELETE FROM transcriptions WHERE id = ?');
     stmt.execute([id]);
     stmt.close();
+    _saveTotals(_totals.minus(TranscriptionRecord.fromMap(rows.single)));
   }
 
   @override
-  void deleteOldest(int count) {
-    if (count <= 0) return;
-    final stmt = _db.prepare('''
-      DELETE FROM transcriptions
-      WHERE id IN (
-        SELECT id FROM transcriptions
-        ORDER BY created_at ASC, id ASC
-        LIMIT ?
-      )
-    ''');
-    stmt.execute([count]);
+  int pruneOlderThan(DateTime cutoff) {
+    final ms = cutoff.millisecondsSinceEpoch;
+    final rows = _db.select(
+      'SELECT * FROM transcriptions WHERE created_at < ?',
+      [ms],
+    );
+    if (rows.isEmpty) return 0;
+    var totals = _totals;
+    for (final row in rows) {
+      totals = totals.minus(TranscriptionRecord.fromMap(row));
+    }
+    final stmt = _db.prepare('DELETE FROM transcriptions WHERE created_at < ?');
+    stmt.execute([ms]);
     stmt.close();
+    _saveTotals(totals);
+    return rows.length;
   }
 
   @override
   void deleteAll() {
     _db.execute('DELETE FROM transcriptions');
+    _saveTotals(HistoryTotals.empty);
   }
 }
 

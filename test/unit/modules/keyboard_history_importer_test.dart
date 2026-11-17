@@ -117,20 +117,23 @@ void main() {
     expect(box.listSync(), isEmpty);
   });
 
-  test('respects the 100-record cap', () async {
-    for (var i = 0; i < 120; i++) {
-      put(
-        '${(i * 1000).toString().padLeft(8, '0')}-x.json',
-        entry('t$i', i * 1000),
-      );
-    }
+  test(
+    'keeps every imported record (retention is by age, not count)',
+    () async {
+      for (var i = 0; i < 120; i++) {
+        put(
+          '${(i * 1000).toString().padLeft(8, '0')}-x.json',
+          entry('t$i', i * 1000),
+        );
+      }
 
-    await importer.run();
+      await importer.run();
 
-    final all = repo.getAll();
-    expect(all.length, TranscriptionRepository.maxRecords);
-    expect(all.first.finalText, 't119');
-  });
+      final all = repo.getAll();
+      expect(all.length, 120);
+      expect(all.first.finalText, 't119');
+    },
+  );
 
   test('concurrent runs share one execution', () async {
     put('1-a.json', entry('a', 1));

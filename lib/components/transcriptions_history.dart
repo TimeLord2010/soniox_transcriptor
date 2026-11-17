@@ -16,6 +16,7 @@ class TranscriptionsHistory extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(historyProvider);
+    final items = history.items;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -43,9 +44,8 @@ class TranscriptionsHistory extends ConsumerWidget {
             ],
           ),
         ),
-        if (history.isNotEmpty)
-          _SummaryHeader(summary: HistorySummary.from(history)),
-        Expanded(child: _content(ref, history)),
+        if (items.isNotEmpty) _SummaryHeader(totals: history.totals),
+        Expanded(child: _content(ref, items)),
       ],
     );
   }
@@ -59,12 +59,21 @@ class TranscriptionsHistory extends ConsumerWidget {
         ),
       );
     }
-    return ListView.builder(
-      itemCount: history.length,
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
-      itemBuilder: (context, index) {
-        return _HistoryItem(record: history[index]);
+    // Páginas de 30: ao chegar perto do fim da lista busca a próxima.
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter < 400) {
+          ref.read(historyProvider.notifier).loadMore();
+        }
+        return false;
       },
+      child: ListView.builder(
+        itemCount: history.length,
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
+        itemBuilder: (context, index) {
+          return _HistoryItem(record: history[index]);
+        },
+      ),
     );
   }
 
@@ -83,7 +92,7 @@ class TranscriptionsHistory extends ConsumerWidget {
             isDestructiveAction: true,
             onPressed: () {
               GetIt.I.get<TranscriptionRepository>().deleteAll();
-              ref.read(historyProvider.notifier).state = [];
+              ref.invalidate(historyProvider);
               Navigator.pop(context);
             },
             child: const Text('Clear'),
@@ -95,15 +104,14 @@ class TranscriptionsHistory extends ConsumerWidget {
 }
 
 class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({required this.summary});
+  const _SummaryHeader({required this.totals});
 
-  final HistorySummary summary;
+  final HistoryTotals totals;
 
   @override
   Widget build(BuildContext context) {
-    final audio = summary.recordsWithDuration == 0
-        ? '—'
-        : formatDurationPt(summary.totalAudio);
+    final hasAudio = totals.recordsWithDuration > 0;
+    final missing = totals.recordsWithoutDuration;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(10),
@@ -113,17 +121,26 @@ class _SummaryHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              _stat('Caracteres', formatThousandsPtBr(summary.totalChars)),
-              _stat('Duração', audio),
-              _stat('Tempo salvo', formatDurationPt(summary.timeSaved)),
+              _stat('Caracteres', formatThousandsPtBr(totals.totalChars)),
+              _stat(
+                'Duração',
+                hasAudio ? formatDurationPt(totals.totalAudio) : '—',
+              ),
             ],
           ),
-          if (summary.recordsWithoutDuration > 0 &&
-              summary.recordsWithDuration > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _stat('Tempo salvo', formatDurationPt(totals.timeSaved)),
+              _stat('Custo estimado', formatUsdPtBr(totals.costUsd)),
+            ],
+          ),
+          if (missing > 0 && hasAudio) ...[
             const SizedBox(height: 6),
             Text(
-              'Sem duração em ${summary.recordsWithoutDuration} '
-              '${summary.recordsWithoutDuration == 1 ? 'transcrição antiga' : 'transcrições antigas'}',
+              'Sem duração em $missing '
+              '${missing == 1 ? 'transcrição antiga' : 'transcrições antigas'} '
+              '(fora da duração e do custo)',
               style: const TextStyle(
                 fontSize: 11,
                 color: CupertinoColors.secondaryLabel,

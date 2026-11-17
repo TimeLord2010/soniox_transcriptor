@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter/services.dart';
 
+import '../../models/history_summary.dart';
 import '../../models/transcription_record.dart';
 import '../styles/ui.dart';
 import '../transcriptions_history.dart' show formatDateTime;
@@ -45,6 +46,14 @@ class TranscriptionDetailPage extends StatelessWidget {
                     value: formatAudioDuration(record.audioDurationMs),
                   ),
                   _InfoRow(label: 'Caracteres', value: '${text.length}'),
+                  _InfoRow(
+                    label: 'Custo estimado',
+                    value: formatUsdPtBr(
+                      record.audioDurationMs == null
+                          ? null
+                          : estimateSonioxCostUsd(record.audioDurationMs!),
+                    ),
+                  ),
                 ],
               ),
             ),
