@@ -9,6 +9,11 @@ import 'package:vit_soniox/vit_soniox.dart';
 /// mensagens do servidor. Serve para exercitar a sessão inteira (config
 /// enviada, tokens chegando, texto na tela) sem rede e sem microfone.
 class FakeServer with WebsocketContract {
+  FakeServer({this.autoFinish = true});
+
+  /// Responde `finished` ao frame vazio (o Soniox real faz isso).
+  final bool autoFinish;
+
   final _incoming = StreamController<String>();
   final sentText = <String>[];
   final sentAudio = <Uint8List>[];
@@ -34,7 +39,19 @@ class FakeServer with WebsocketContract {
   Stream<String> get stream => _incoming.stream;
 
   @override
-  void send(String data) => sentText.add(data);
+  void send(String data) {
+    sentText.add(data);
+    // Como o Soniox: o frame de texto vazio encerra o stream e ele responde
+    // com `finished`.
+    if (data.isEmpty && autoFinish) {
+      push({
+        'tokens': [],
+        'final_audio_proc_ms': 0,
+        'total_audio_proc_ms': 0,
+        'finished': true,
+      });
+    }
+  }
 
   @override
   void sendBinary(Uint8List data) => sentAudio.add(data);

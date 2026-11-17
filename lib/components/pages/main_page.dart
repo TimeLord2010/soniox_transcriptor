@@ -9,6 +9,7 @@ import 'package:soniox_transcriptor/components/pages/sandbox_tab.dart';
 import 'package:soniox_transcriptor/components/transcriptions_history.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
 import 'package:soniox_transcriptor/modules/browser_viewport.dart';
+import 'package:soniox_transcriptor/modules/cost_sync.dart';
 import 'package:soniox_transcriptor/modules/keyboard_history_importer.dart';
 import 'package:soniox_transcriptor/modules/keyboard_session.dart';
 import 'package:soniox_transcriptor/modules/platform_support.dart';
@@ -81,6 +82,9 @@ class _MainPageState extends ConsumerState<MainPage>
     if (imported > 0 && mounted) ref.invalidate(historyProvider);
   }
 
+  CostSync? get _costSync =>
+      GetIt.I.isRegistered<CostSync>() ? GetIt.I.get<CostSync>() : null;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _importKeyboardHistory();
@@ -91,6 +95,12 @@ class _MainPageState extends ConsumerState<MainPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _importKeyboardHistory();
+    // Custo exato: resolve o que ficou pendente e avisa o histórico quando
+    // algum custo chegar. Sem o serviço registrado (testes) nada acontece.
+    _costSync?.onChanged = () {
+      if (mounted) ref.invalidate(historyProvider);
+    };
+    unawaited(_costSync?.reconcile());
     if (PlatformSupport.supportsGlobalHotkey) {
       hotkeyListener.start().catchError((Object e) {
         debugPrint('[MainPage] hotkeyListener.start() error: $e');
@@ -119,6 +129,7 @@ class _MainPageState extends ConsumerState<MainPage>
     // Não remover: o observer é o único caminho para recalcular o inset do
     // rodapé no navegador.
     WidgetsBinding.instance.removeObserver(this);
+    _costSync?.onChanged = null;
     _session.dispose();
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
@@ -354,6 +365,7 @@ class _MainPageState extends ConsumerState<MainPage>
       translationTarget: ref.read(translationProvider),
       contextText: ref.read(contextProvider),
       terms: ref.read(termsProvider),
+      clientReferenceId: newClientReferenceId(),
     );
     return SonioxWebsocket(sessionConfig, websocket: createWebsocket());
   }
@@ -387,7 +399,7 @@ class _MainPageState extends ConsumerState<MainPage>
       return;
     }
     if (_session.isRecording) {
-      _session.finishSession();
+      unawaited(_session.finishSession());
       return;
     }
     // O diálogo de permissão do sistema aparece aqui: pedir dentro da sessão
@@ -461,6 +473,7 @@ class _MainPageState extends ConsumerState<MainPage>
     String nonFinal,
     String sandboxBaseText, {
     Duration? audioDuration,
+    String? clientReferenceId,
   }) {
     GetIt.I.get<TranscriptionRepository>().insert(
       TranscriptionRecord(
@@ -468,15 +481,36 @@ class _MainPageState extends ConsumerState<MainPage>
         nonFinalText: nonFinal,
         createdAt: DateTime.now(),
         audioDurationMs: audioDuration?.inMilliseconds,
+        clientReferenceId: clientReferenceId,
       ),
     );
     ref.invalidate(historyProvider);
+    if (clientReferenceId != null) _costSync?.sessionEnded();
     final fullText = finalText + nonFinal;
     if (_session.sessionFromButton) {
       _deliverToSandbox('$sandboxBaseText$fullText');
     } else {
       HotkeyListener.pasteText(fullText);
     }
+  }
+
+  @override
+  void onSessionWithoutText(
+    String clientReferenceId, {
+    Duration? audioDuration,
+  }) {
+    // Fica fora da lista (sem texto), mas o custo real entra no total.
+    GetIt.I.get<TranscriptionRepository>().insert(
+      TranscriptionRecord(
+        finalText: '',
+        nonFinalText: '',
+        createdAt: DateTime.now(),
+        audioDurationMs: audioDuration?.inMilliseconds,
+        clientReferenceId: clientReferenceId,
+      ),
+    );
+    ref.invalidate(historyProvider);
+    _costSync?.sessionEnded();
   }
 
   @override

@@ -112,6 +112,7 @@ class _SummaryHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasAudio = totals.recordsWithDuration > 0;
     final missing = totals.recordsWithoutDuration;
+    final costNote = costSummaryNote(totals);
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(10),
@@ -132,25 +133,27 @@ class _SummaryHeader extends StatelessWidget {
           Row(
             children: [
               _stat('Tempo salvo', formatDurationPt(totals.timeSaved)),
-              _stat('Custo estimado', formatUsdPtBr(totals.costUsd)),
+              _stat('Custo', formatUsdPtBr(totals.costUsd)),
             ],
           ),
           if (missing > 0 && hasAudio) ...[
             const SizedBox(height: 6),
-            Text(
+            _note(
               'Sem duração em $missing '
               '${missing == 1 ? 'transcrição antiga' : 'transcrições antigas'} '
-              '(fora da duração e do custo)',
-              style: const TextStyle(
-                fontSize: 11,
-                color: CupertinoColors.secondaryLabel,
-              ),
+              '(fora da duração)',
             ),
           ],
+          if (costNote != null) ...[const SizedBox(height: 6), _note(costNote)],
         ],
       ),
     );
   }
+
+  Widget _note(String text) => Text(
+    text,
+    style: const TextStyle(fontSize: 11, color: CupertinoColors.secondaryLabel),
+  );
 
   Widget _stat(String label, String value) {
     return Expanded(
@@ -244,4 +247,18 @@ String formatDateTime(DateTime dt) {
   String two(int value) => value.toString().padLeft(2, '0');
   return '${two(local.day)}/${two(local.month)}/${local.year} '
       '${two(local.hour)}:${two(local.minute)}';
+}
+
+/// Observação discreta do cabeçalho sobre o custo: sessões sem texto incluídas,
+/// custos ainda calculando e registros sem custo. `null` se não há nada a dizer.
+String? costSummaryNote(HistoryTotals totals) {
+  String plural(int n, String one, String many) => n == 1 ? one : many;
+  final parts = <String>[
+    if (totals.emptySessionsWithCost > 0)
+      'inclui ${totals.emptySessionsWithCost} '
+          '${plural(totals.emptySessionsWithCost, 'sessão sem texto', 'sessões sem texto')}',
+    if (totals.pendingCost > 0) '${totals.pendingCost} calculando…',
+    if (totals.noCost > 0) '${totals.noCost} sem custo',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soniox_transcriptor/models/transcription_record.dart';
+import 'package:soniox_transcriptor/models/usage_cost.dart';
 
 void main() {
   group('TranscriptionRecord', () {
@@ -64,5 +65,37 @@ void main() {
       final back = TranscriptionRecord.fromMap(record.toJson());
       expect(back.audioDurationMs, 65000);
     });
+
+    test(
+      'referência e custo fazem ida e volta; registro antigo é "sem custo"',
+      () {
+        final record = TranscriptionRecord(
+          id: 3,
+          finalText: 'a',
+          nonFinalText: '',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1234),
+          clientReferenceId: 'abc',
+        );
+        expect(record.costState, CostState.pending);
+        final done = record.copyWithCost(
+          const UsageCost(costE10: 1580000, inputAudioTokens: 33),
+        );
+        final back = TranscriptionRecord.fromMap(done.toJson());
+        expect(back.clientReferenceId, 'abc');
+        expect(back.costE10, 1580000);
+        expect(back.inputAudioTokens, 33);
+        expect(back.costState, CostState.known);
+        expect(record.copyWithCost(null).costState, CostState.unavailable);
+        expect(
+          TranscriptionRecord.fromMap({
+            'id': 1,
+            'final_text': 'a',
+            'non_final_text': '',
+            'created_at': 1,
+          }).costState,
+          CostState.unavailable,
+        );
+      },
+    );
   });
 }

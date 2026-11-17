@@ -4,27 +4,6 @@ import 'transcription_record.dart';
 /// 200 caracteres por minuto (≈ 40 palavras por minuto).
 const int kTypingCharsPerMinute = 200;
 
-// Preço do Soniox em tempo real (WebSocket, modelos stt-rt-*), pay-as-you-go.
-// Fonte: https://soniox.com/pricing (consultado em 2026-11-17).
-// A página lista: tokens de áudio de entrada US$ 2,00 por 1M, tokens de texto
-// de saída US$ 4,00 por 1M, e como referência 1 hora de áudio ≈ 30.000 tokens
-// de áudio e ≈ 15.000 tokens de texto (= US$ 0,12 por hora de áudio).
-// Os tokens de texto de cada registro não são medidos pelo app, então o custo
-// usa a proporção por hora de áudio da própria página.
-const double kSonioxAudioUsdPerMillionTokens = 2.00;
-const double kSonioxTextOutUsdPerMillionTokens = 4.00;
-const int kSonioxAudioTokensPerHour = 30000;
-const int kSonioxTextTokensPerHour = 15000;
-
-/// US$ por hora de áudio (0,12), derivado das constantes acima.
-const double kSonioxUsdPerAudioHour =
-    kSonioxAudioTokensPerHour * kSonioxAudioUsdPerMillionTokens / 1e6 +
-    kSonioxTextTokensPerHour * kSonioxTextOutUsdPerMillionTokens / 1e6;
-
-/// Custo estimado, em US$, de [audioMs] de áudio transcrito.
-double estimateSonioxCostUsd(int audioMs) =>
-    audioMs / Duration.millisecondsPerHour * kSonioxUsdPerAudioHour;
-
 /// Totais do histórico exibidos no topo da aba "Histórico". Persistidos pelos
 /// stores e atualizados de forma incremental (insert/delete/prune/limpar), para
 /// o cabeçalho não varrer os registros.
@@ -34,6 +13,10 @@ class HistoryTotals {
     this.audioMs = 0,
     this.recordsWithDuration = 0,
     this.recordsWithoutDuration = 0,
+    this.costE10 = 0,
+    this.pendingCost = 0,
+    this.noCost = 0,
+    this.emptySessionsWithCost = 0,
   });
 
   static const empty = HistoryTotals();
@@ -53,7 +36,20 @@ class HistoryTotals {
     final ms = json['audio_ms'];
     final withD = json['with_duration'];
     final withoutD = json['without_duration'];
-    if (chars is! int || ms is! int || withD is! int || withoutD is! int) {
+    final cost = json['cost_e10'];
+    final pending = json['pending_cost'];
+    final none = json['no_cost'];
+    final empty = json['empty_with_cost'];
+    // Totais gravados antes do custo exato não têm os campos de custo: devolve
+    // null para o store recalcular uma vez a partir dos registros.
+    if (chars is! int ||
+        ms is! int ||
+        withD is! int ||
+        withoutD is! int ||
+        cost is! int ||
+        pending is! int ||
+        none is! int ||
+        empty is! int) {
       return null;
     }
     return HistoryTotals(
@@ -61,6 +57,10 @@ class HistoryTotals {
       audioMs: ms,
       recordsWithDuration: withD,
       recordsWithoutDuration: withoutD,
+      costE10: cost,
+      pendingCost: pending,
+      noCost: none,
+      emptySessionsWithCost: empty,
     );
   }
 
@@ -69,17 +69,53 @@ class HistoryTotals {
   final int recordsWithDuration;
   final int recordsWithoutDuration;
 
+  /// Soma dos custos exatos já conhecidos (1e-10 US$), incluindo as sessões
+  /// sem texto.
+  final int costE10;
+
+  /// Registros (visíveis ou sem texto) cujo custo ainda não chegou.
+  final int pendingCost;
+
+  /// Registros visíveis sem custo (antigos ou não encontrados no log).
+  final int noCost;
+
+  /// Sessões sem texto, já com custo, somadas em [costE10].
+  final int emptySessionsWithCost;
+
   HistoryTotals plus(TranscriptionRecord record) => _apply(record, 1);
 
   HistoryTotals minus(TranscriptionRecord record) => _apply(record, -1);
 
   HistoryTotals _apply(TranscriptionRecord record, int sign) {
+    final state = record.costState;
+    final costFields = (
+      cost: costE10 + sign * (record.costE10 ?? 0),
+      pending: pendingCost + (state == CostState.pending ? sign : 0),
+    );
+    if (record.isHidden) {
+      // Sessão sem texto: só custo (e a contagem de sessões sem texto).
+      return HistoryTotals(
+        totalChars: totalChars,
+        audioMs: audioMs,
+        recordsWithDuration: recordsWithDuration,
+        recordsWithoutDuration: recordsWithoutDuration,
+        costE10: costFields.cost,
+        pendingCost: costFields.pending,
+        noCost: noCost,
+        emptySessionsWithCost:
+            emptySessionsWithCost + (state == CostState.known ? sign : 0),
+      );
+    }
     final ms = record.audioDurationMs;
     return HistoryTotals(
       totalChars: totalChars + sign * record.text.length,
       audioMs: audioMs + sign * (ms ?? 0),
       recordsWithDuration: recordsWithDuration + (ms != null ? sign : 0),
       recordsWithoutDuration: recordsWithoutDuration + (ms == null ? sign : 0),
+      costE10: costFields.cost,
+      pendingCost: costFields.pending,
+      noCost: noCost + (state == CostState.unavailable ? sign : 0),
+      emptySessionsWithCost: emptySessionsWithCost,
     );
   }
 
@@ -88,6 +124,10 @@ class HistoryTotals {
     'audio_ms': audioMs,
     'with_duration': recordsWithDuration,
     'without_duration': recordsWithoutDuration,
+    'cost_e10': costE10,
+    'pending_cost': pendingCost,
+    'no_cost': noCost,
+    'empty_with_cost': emptySessionsWithCost,
   };
 
   int get recordCount => recordsWithDuration + recordsWithoutDuration;
@@ -98,9 +138,8 @@ class HistoryTotals {
   Duration get timeSaved =>
       Duration(seconds: (totalChars * 60 / kTypingCharsPerMinute).round());
 
-  /// Custo estimado do Soniox; `null` sem nenhum registro com duração.
-  double? get costUsd =>
-      recordsWithDuration == 0 ? null : estimateSonioxCostUsd(audioMs);
+  /// Custo exato total (US$) dos registros com custo conhecido.
+  double get costUsd => costE10 / 1e10;
 }
 
 /// 12345 -> "12.345".
@@ -125,12 +164,16 @@ String formatDurationPt(Duration duration) {
   return '$s s';
 }
 
-/// 0.42 -> "US\$ 0,42"; abaixo de 1 centavo -> "< US\$ 0,01"; `null` -> "—".
+/// Custo exato em US$, pt-BR: 4 a 6 casas decimais (sem zeros sobrando além
+/// da quarta), porque uma sessão curta custa frações de centavo.
+/// 0.0123 -> "US$ 0,0123"; 0.000158 -> "US$ 0,000158"; `null` -> "—".
 String formatUsdPtBr(double? usd) {
   if (usd == null) return '—';
-  if (usd <= 0) return 'US\$ 0,00';
-  if (usd < 0.01) return '< US\$ 0,01';
-  final cents = (usd * 100).round();
-  final whole = formatThousandsPtBr(cents ~/ 100);
-  return 'US\$ $whole,${(cents % 100).toString().padLeft(2, '0')}';
+  var text = usd.toStringAsFixed(6);
+  while (text.endsWith('0') && text.length - text.indexOf('.') - 1 > 4) {
+    text = text.substring(0, text.length - 1);
+  }
+  final dot = text.indexOf('.');
+  final whole = formatThousandsPtBr(int.parse(text.substring(0, dot)));
+  return 'US\$ $whole,${text.substring(dot + 1)}';
 }

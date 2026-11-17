@@ -33,14 +33,53 @@ void main() {
     expect(HistoryTotals.fromJson('lixo'), isNull);
   });
 
-  test('fórmula de custo: US\$ 0,12 por hora de áudio', () {
-    expect(kSonioxUsdPerAudioHour, closeTo(0.12, 1e-9));
-    expect(estimateSonioxCostUsd(3600000), closeTo(0.12, 1e-9));
-    expect(estimateSonioxCostUsd(10 * 3600000), closeTo(1.2, 1e-9));
-    expect(HistoryTotals.fromRecords([rec('a')]).costUsd, isNull);
+  test('custo exato soma só o que o Soniox informou', () {
+    TranscriptionRecord withCost(int e10) => TranscriptionRecord(
+      finalText: 'a',
+      nonFinalText: '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      clientReferenceId: 'r$e10',
+      costE10: e10,
+    );
+    final pending = TranscriptionRecord(
+      finalText: 'a',
+      nonFinalText: '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      clientReferenceId: 'p',
+    );
+    final empty = TranscriptionRecord(
+      finalText: '',
+      nonFinalText: '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      clientReferenceId: 'e',
+      costE10: 500000,
+    );
+    final t = HistoryTotals.fromRecords([
+      withCost(1580000),
+      withCost(100),
+      pending,
+      rec('antigo'),
+      empty,
+    ]);
+    expect(t.costE10, 1580000 + 100 + 500000);
+    expect(t.costUsd, closeTo(0.000158 + 0.00000001 + 0.00005, 1e-12));
+    expect(t.pendingCost, 1);
+    expect(t.noCost, 1);
+    expect(t.emptySessionsWithCost, 1);
+    // A sessão sem texto não conta como transcrição.
+    expect(t.recordCount, 4);
+    final back = HistoryTotals.fromJson(t.toJson())!;
+    expect(back.costE10, t.costE10);
+    expect(back.pendingCost, 1);
+    // Totais gravados antes do custo exato pedem recálculo.
     expect(
-      HistoryTotals.fromRecords([rec('a', ms: 3600000)]).costUsd,
-      closeTo(0.12, 1e-9),
+      HistoryTotals.fromJson({
+        'total_chars': 1,
+        'audio_ms': 1,
+        'with_duration': 1,
+        'without_duration': 0,
+      }),
+      isNull,
     );
   });
 
@@ -52,9 +91,10 @@ void main() {
       formatDurationPt(const Duration(hours: 2, minutes: 15)),
       '2 h 15 min',
     );
-    expect(formatUsdPtBr(0.42), 'US\$ 0,42');
-    expect(formatUsdPtBr(1234.5), 'US\$ 1.234,50');
-    expect(formatUsdPtBr(0.0001), '< US\$ 0,01');
+    expect(formatUsdPtBr(0.0123), 'US\$ 0,0123');
+    expect(formatUsdPtBr(0.000158), 'US\$ 0,000158');
+    expect(formatUsdPtBr(0.42), 'US\$ 0,4200');
+    expect(formatUsdPtBr(1234.5), 'US\$ 1.234,5000');
     expect(formatUsdPtBr(null), '—');
   });
 }

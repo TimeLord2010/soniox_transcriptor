@@ -46,10 +46,22 @@ void main() {
       expect(row['created_at'], 5000);
     });
 
-    test('aceita final vazio', () {
-      repo.insert(recordAt(1, text: ''));
+    test('aceita final vazio quando há texto parcial', () {
+      repo.insert(
+        TranscriptionRecord(
+          finalText: '',
+          nonFinalText: 'parcial',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+        ),
+      );
 
       expect(repo.getAll().single.finalText, '');
+    });
+
+    test('sessão sem texto (só custo) fica fora da lista', () {
+      repo.insert(recordAt(1, text: ''));
+
+      expect(repo.getAll(), isEmpty);
     });
   });
 

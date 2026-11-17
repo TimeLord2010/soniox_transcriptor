@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../models/history_summary.dart';
 import '../models/transcription_record.dart';
+import '../models/usage_cost.dart';
 import 'history_store.dart';
 
 /// Histórico em SQLite (macOS/Android). Só é compilado onde `dart:io` e
@@ -16,7 +17,13 @@ class SqliteHistoryStore implements HistoryStore {
       final_text TEXT NOT NULL,
       non_final_text TEXT NOT NULL,
       created_at INTEGER NOT NULL,
-      audio_duration_ms INTEGER
+      audio_duration_ms INTEGER,
+      client_reference_id TEXT,
+      cost_e10 INTEGER,
+      input_audio_tokens INTEGER,
+      input_text_tokens INTEGER,
+      output_text_tokens INTEGER,
+      cost_unavailable INTEGER
     )
   ''';
 
@@ -28,7 +35,11 @@ class SqliteHistoryStore implements HistoryStore {
       total_chars INTEGER NOT NULL,
       audio_ms INTEGER NOT NULL,
       with_duration INTEGER NOT NULL,
-      without_duration INTEGER NOT NULL
+      without_duration INTEGER NOT NULL,
+      cost_e10 INTEGER NOT NULL,
+      pending_cost INTEGER NOT NULL,
+      no_cost INTEGER NOT NULL,
+      empty_with_cost INTEGER NOT NULL
     )
   ''';
 
@@ -42,15 +53,36 @@ class SqliteHistoryStore implements HistoryStore {
   /// Aceita um banco já aberto (testes usam `sqlite3.openInMemory()`).
   SqliteHistoryStore(this._db) {
     _db.execute(schema);
-    // Bancos criados antes do campo de duração não têm a coluna.
+    // Bancos criados antes de um campo não têm a coluna.
     final columns = _db
         .select('PRAGMA table_info(transcriptions)')
         .map((row) => row['name'])
         .toList();
-    if (!columns.contains('audio_duration_ms')) {
-      _db.execute(
-        'ALTER TABLE transcriptions ADD COLUMN audio_duration_ms INTEGER',
-      );
+    const added = {
+      'audio_duration_ms': 'INTEGER',
+      'client_reference_id': 'TEXT',
+      'cost_e10': 'INTEGER',
+      'input_audio_tokens': 'INTEGER',
+      'input_text_tokens': 'INTEGER',
+      'output_text_tokens': 'INTEGER',
+      'cost_unavailable': 'INTEGER',
+    };
+    added.forEach((name, type) {
+      if (!columns.contains(name)) {
+        _db.execute('ALTER TABLE transcriptions ADD COLUMN $name $type');
+      }
+    });
+    _db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transcriptions_client_reference_id '
+      'ON transcriptions (client_reference_id)',
+    );
+    // Totais de antes do custo exato: descarta para recalcular uma vez.
+    final totalsColumns = _db
+        .select('PRAGMA table_info(history_totals)')
+        .map((row) => row['name'])
+        .toList();
+    if (totalsColumns.isNotEmpty && !totalsColumns.contains('cost_e10')) {
+      _db.execute('DROP TABLE history_totals');
     }
     _db.execute(
       'CREATE INDEX IF NOT EXISTS idx_transcriptions_created_at '
@@ -59,6 +91,9 @@ class SqliteHistoryStore implements HistoryStore {
     _db.execute(totalsSchema);
     _totals = _readTotals() ?? _migrateTotals();
   }
+
+  /// Sessões sem texto (só custo) não aparecem na lista.
+  static const _visible = "WHERE final_text != '' OR non_final_text != ''";
 
   final Database _db;
   late HistoryTotals _totals;
@@ -75,6 +110,10 @@ class SqliteHistoryStore implements HistoryStore {
       audioMs: row['audio_ms'] as int,
       recordsWithDuration: row['with_duration'] as int,
       recordsWithoutDuration: row['without_duration'] as int,
+      costE10: row['cost_e10'] as int,
+      pendingCost: row['pending_cost'] as int,
+      noCost: row['no_cost'] as int,
+      emptySessionsWithCost: row['empty_with_cost'] as int,
     );
   }
 
@@ -94,14 +133,19 @@ class SqliteHistoryStore implements HistoryStore {
     _totals = totals;
     final stmt = _db.prepare('''
       INSERT OR REPLACE INTO history_totals
-        (id, total_chars, audio_ms, with_duration, without_duration)
-      VALUES (1, ?, ?, ?, ?)
+        (id, total_chars, audio_ms, with_duration, without_duration,
+         cost_e10, pending_cost, no_cost, empty_with_cost)
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
     stmt.execute([
       totals.totalChars,
       totals.audioMs,
       totals.recordsWithDuration,
       totals.recordsWithoutDuration,
+      totals.costE10,
+      totals.pendingCost,
+      totals.noCost,
+      totals.emptySessionsWithCost,
     ]);
     stmt.close();
   }
@@ -114,14 +158,23 @@ class SqliteHistoryStore implements HistoryStore {
   @override
   void insert(TranscriptionRecord record) {
     final stmt = _db.prepare('''
-      INSERT INTO transcriptions (final_text, non_final_text, created_at, audio_duration_ms)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO transcriptions (
+        final_text, non_final_text, created_at, audio_duration_ms,
+        client_reference_id, cost_e10, input_audio_tokens, input_text_tokens,
+        output_text_tokens, cost_unavailable
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
     stmt.execute([
       record.finalText,
       record.nonFinalText,
       record.createdAt.millisecondsSinceEpoch,
       record.audioDurationMs,
+      record.clientReferenceId,
+      record.costE10,
+      record.inputAudioTokens,
+      record.inputTextTokens,
+      record.outputTextTokens,
+      record.costUnavailable ? 1 : 0,
     ]);
     stmt.close();
     _saveTotals(_totals.plus(record));
@@ -130,8 +183,8 @@ class SqliteHistoryStore implements HistoryStore {
   @override
   List<TranscriptionRecord> page({required int limit, int offset = 0}) {
     final result = _db.select(
-      'SELECT * FROM transcriptions ORDER BY created_at DESC, id DESC '
-      'LIMIT ? OFFSET ?',
+      'SELECT * FROM transcriptions $_visible '
+      'ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?',
       [limit, offset],
     );
     return result.map(TranscriptionRecord.fromMap).toList();
@@ -140,10 +193,58 @@ class SqliteHistoryStore implements HistoryStore {
   @override
   List<TranscriptionRecord> getAll() {
     final result = _db.select('''
-      SELECT * FROM transcriptions
+      SELECT * FROM transcriptions $_visible
       ORDER BY created_at DESC, id DESC
     ''');
     return result.map(TranscriptionRecord.fromMap).toList();
+  }
+
+  @override
+  List<TranscriptionRecord> pendingCosts() {
+    return _db
+        .select(
+          'SELECT * FROM transcriptions WHERE client_reference_id IS NOT NULL '
+          'AND cost_e10 IS NULL AND COALESCE(cost_unavailable, 0) = 0 '
+          'ORDER BY created_at ASC',
+        )
+        .map(TranscriptionRecord.fromMap)
+        .toList();
+  }
+
+  @override
+  void applyCost(String clientReferenceId, UsageCost? cost) {
+    final rows = _db.select(
+      'SELECT * FROM transcriptions WHERE client_reference_id = ?',
+      [clientReferenceId],
+    );
+    var totals = _totals;
+    for (final row in rows) {
+      final old = TranscriptionRecord.fromMap(row);
+      totals = totals.minus(old);
+      if (old.isHidden && cost == null) {
+        final del = _db.prepare('DELETE FROM transcriptions WHERE id = ?');
+        del.execute([old.id]);
+        del.close();
+        continue;
+      }
+      final updated = old.copyWithCost(cost);
+      final stmt = _db.prepare('''
+        UPDATE transcriptions SET cost_e10 = ?, input_audio_tokens = ?,
+          input_text_tokens = ?, output_text_tokens = ?, cost_unavailable = ?
+        WHERE id = ?
+      ''');
+      stmt.execute([
+        updated.costE10,
+        updated.inputAudioTokens,
+        updated.inputTextTokens,
+        updated.outputTextTokens,
+        updated.costUnavailable ? 1 : 0,
+        old.id,
+      ]);
+      stmt.close();
+      totals = totals.plus(updated);
+    }
+    if (rows.isNotEmpty) _saveTotals(totals);
   }
 
   @override

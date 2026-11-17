@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/history_summary.dart';
 import '../models/transcription_record.dart';
+import '../models/usage_cost.dart';
 import 'history_store.dart';
 
 /// Histórico no web: uma lista JSON em `SharedPreferences` (localStorage).
@@ -93,13 +94,7 @@ class PrefsHistoryStore implements HistoryStore {
   @override
   void insert(TranscriptionRecord record) {
     _records.add(
-      TranscriptionRecord(
-        id: _nextId++,
-        finalText: record.finalText,
-        nonFinalText: record.nonFinalText,
-        createdAt: record.createdAt,
-        audioDurationMs: record.audioDurationMs,
-      ),
+      TranscriptionRecord.fromMap({...record.toMap(), 'id': _nextId++}),
     );
     _sortNewestFirst();
     _totals = _totals.plus(record);
@@ -108,13 +103,41 @@ class PrefsHistoryStore implements HistoryStore {
 
   @override
   List<TranscriptionRecord> page({required int limit, int offset = 0}) {
-    if (offset >= _records.length) return const [];
-    final end = (offset + limit).clamp(0, _records.length);
-    return List.unmodifiable(_records.sublist(offset, end));
+    final visible = getAll();
+    if (offset >= visible.length) return const [];
+    final end = (offset + limit).clamp(0, visible.length);
+    return List.unmodifiable(visible.sublist(offset, end));
   }
 
   @override
-  List<TranscriptionRecord> getAll() => List.unmodifiable(_records);
+  List<TranscriptionRecord> getAll() =>
+      List.unmodifiable(_records.where((r) => !r.isHidden));
+
+  @override
+  List<TranscriptionRecord> pendingCosts() => _records
+      .where((r) => r.costState == CostState.pending)
+      .toList()
+      .reversed
+      .toList();
+
+  @override
+  void applyCost(String clientReferenceId, UsageCost? cost) {
+    var changed = false;
+    for (var i = _records.length - 1; i >= 0; i--) {
+      final old = _records[i];
+      if (old.clientReferenceId != clientReferenceId) continue;
+      changed = true;
+      _totals = _totals.minus(old);
+      if (old.isHidden && cost == null) {
+        _records.removeAt(i);
+        continue;
+      }
+      final updated = old.copyWithCost(cost);
+      _records[i] = updated;
+      _totals = _totals.plus(updated);
+    }
+    if (changed) _persist();
+  }
 
   @override
   void delete(int id) {

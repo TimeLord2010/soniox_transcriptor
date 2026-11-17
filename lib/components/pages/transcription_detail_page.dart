@@ -46,14 +46,7 @@ class TranscriptionDetailPage extends StatelessWidget {
                     value: formatAudioDuration(record.audioDurationMs),
                   ),
                   _InfoRow(label: 'Caracteres', value: '${text.length}'),
-                  _InfoRow(
-                    label: 'Custo estimado',
-                    value: formatUsdPtBr(
-                      record.audioDurationMs == null
-                          ? null
-                          : estimateSonioxCostUsd(record.audioDurationMs!),
-                    ),
-                  ),
+                  _InfoRow(label: 'Custo', value: formatRecordCost(record)),
                 ],
               ),
             ),
@@ -107,4 +100,17 @@ String formatAudioDuration(int? ms) {
   final m = (total % 3600) ~/ 60;
   final s = total % 60;
   return h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
+}
+
+/// Custo exato do registro: valor em US$, "calculando…" enquanto o log de uso
+/// do Soniox não traz, ou "sem custo" (registro antigo / não encontrado).
+String formatRecordCost(TranscriptionRecord record) {
+  switch (record.costState) {
+    case CostState.known:
+      return formatUsdPtBr(record.costUsd);
+    case CostState.pending:
+      return 'calculando…';
+    case CostState.unavailable:
+      return 'sem custo';
+  }
 }

@@ -1,5 +1,6 @@
 import '../models/history_summary.dart';
 import '../models/transcription_record.dart';
+import '../models/usage_cost.dart';
 
 /// Onde o histórico de transcrições mora.
 ///
@@ -15,10 +16,11 @@ abstract class HistoryStore {
   /// Grava [record]. O `id` é atribuído pelo store; o do [record] é ignorado.
   void insert(TranscriptionRecord record);
 
-  /// Uma página de registros, do mais novo para o mais antigo.
+  /// Uma página de registros visíveis (com texto), do mais novo para o mais
+  /// antigo. Sessões sem texto, guardadas só pelo custo, ficam de fora.
   List<TranscriptionRecord> page({required int limit, int offset = 0});
 
-  /// Todos os registros, do mais novo para o mais antigo. Só para testes e
+  /// Todos os registros visíveis, do mais novo para o mais antigo. Só para testes e
   /// migrações: a tela usa [page].
   List<TranscriptionRecord> getAll();
 
@@ -26,6 +28,14 @@ abstract class HistoryStore {
   /// incremental — nunca recalculados varrendo os registros, exceto na
   /// migração de quem já tinha histórico antes deste campo.
   HistoryTotals get totals;
+
+  /// Registros (inclusive sessões sem texto) cujo custo ainda não chegou.
+  List<TranscriptionRecord> pendingCosts();
+
+  /// Grava o custo exato da sessão [clientReferenceId] e ajusta os totais.
+  /// [cost] `null` = o log de uso não trouxe: o registro vira "sem custo" (e
+  /// uma sessão sem texto, que só existia pelo custo, é descartada).
+  void applyCost(String clientReferenceId, UsageCost? cost);
 
   void delete(int id);
 

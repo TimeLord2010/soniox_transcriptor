@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 import 'package:soniox_transcriptor/modules/control_tokens.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
+import 'package:soniox_transcriptor/modules/session_config.dart';
 import 'package:soniox_transcriptor/modules/soniox_error_text.dart';
 import 'package:soniox_transcriptor/modules/translated_event.dart';
 import 'package:soniox_transcriptor/repositories/recorder_repository.dart';
@@ -40,11 +42,20 @@ abstract class SessionHost {
   /// começou — o resultado entra depois dele, sem apagar o que a pessoa digitou.
   ///
   /// [audioDuration] é o tempo de áudio realmente capturado (`null` se o
-  /// gravador nunca chegou a abrir).
+  /// gravador nunca chegou a abrir). [clientReferenceId] é a referência enviada
+  /// ao Soniox, para achar o custo exato da sessão no log de uso.
   void onCompleted(
     String finalText,
     String nonFinal,
     String sandboxBaseText, {
+    Duration? audioDuration,
+    String? clientReferenceId,
+  });
+
+  /// A sessão abriu a captura mas não produziu texto. O Soniox cobra mesmo
+  /// assim: o app guarda só a referência para somar o custo real depois.
+  void onSessionWithoutText(
+    String clientReferenceId, {
     Duration? audioDuration,
   });
 
@@ -68,6 +79,7 @@ class SessionController {
     required this.supportsOverlay,
     required this.diarizationEnabled,
     required this.translationTarget,
+    this.finishTimeout = const Duration(seconds: 10),
   });
 
   final SessionHost host;
@@ -80,6 +92,9 @@ class SessionController {
   /// Opções lidas do perfil no momento em que a captura abre.
   final bool Function() diarizationEnabled;
   final Language? Function() translationTarget;
+
+  /// Quanto esperamos o `finished` do Soniox antes de fechar mesmo assim.
+  final Duration finishTimeout;
 
   SonioxWebsocket? _connection;
   StreamSubscription<bool>? _connectionSubscription;
@@ -95,6 +110,9 @@ class SessionController {
 
   bool _isProcessing = false;
   bool _recording = false;
+
+  /// Encerramento em andamento: espera o `finished` do Soniox.
+  bool _finishing = false;
 
   /// A sessão foi aberta pelo botão de gravar em vez da tecla global. Nesse
   /// caso o destino é a sandbox em qualquer plataforma — inclusive no macOS,
@@ -261,34 +279,88 @@ class SessionController {
   /// Fecha a captura e entrega o texto: colado no app em foco (tecla global no
   /// macOS) ou deixado na sandbox + área de transferência (sessão do botão, em
   /// qualquer plataforma).
-  void finishSession() {
-    if (!_isProcessing) return;
+  ///
+  /// O fim é o protocolo do Soniox: para o envio de áudio, manda o frame de
+  /// texto vazio e espera a mensagem `finished` (até [finishTimeout]) antes de
+  /// fechar o socket — só assim a sessão conta como concluída no log de uso, e
+  /// os últimos tokens finais chegam antes de o texto ser entregue.
+  Future<void> finishSession() async {
+    if (!_isProcessing || _finishing) return;
+    _finishing = true;
+    // O botão já sai de "gravando": o que falta é só a confirmação do Soniox.
+    _recording = false;
+    host.onStateChanged();
 
-    final finalText = _buffer.toString();
-    final fullText = finalText + _nonFinal;
+    final connection = _connection;
     final hadError = _sessionError != null;
 
     // Keep an error on screen long enough to read after the key is released.
     if (!_sessionFromButton) host.onHideOverlay(hadError: hadError);
+
+    await _recordStreamSubscription?.cancel();
+    _recordStreamSubscription = null;
+    await recorder.stop();
+    _captureWatch.stop();
+    final audioDuration = _captured ? _captureWatch.elapsed : null;
+
+    if (connection != null && _captured && !hadError) {
+      await _awaitFinished(connection);
+    }
+
+    final finalText = _buffer.toString();
+    final fullText = finalText + _nonFinal;
+    final referenceId = connection == null
+        ? null
+        : clientReferenceIdOf(connection.config);
 
     if (fullText.isNotEmpty) {
       host.onCompleted(
         finalText,
         _nonFinal,
         _sandboxBaseText,
-        audioDuration: _captured ? _captureWatch.elapsed : null,
+        audioDuration: audioDuration,
+        clientReferenceId: _captured ? referenceId : null,
       );
+    } else if (_captured && referenceId != null) {
+      host.onSessionWithoutText(referenceId, audioDuration: audioDuration);
     }
 
-    _connection?.disconnect();
-    recorder.stop();
-    _captureWatch.stop();
+    connection?.disconnect();
     _captured = false;
     _isProcessing = false;
-    _recording = false;
     _sessionFromButton = false;
+    _finishing = false;
     host.onStateChanged();
     host.onClosed();
+  }
+
+  /// Manda o frame vazio e espera a mensagem `finished` (ou o prazo).
+  Future<void> _awaitFinished(SonioxWebsocket connection) async {
+    final finished = Completer<void>();
+    final subscription = connection.rawMessages.listen((raw) {
+      if (_isFinishedMessage(raw) && !finished.isCompleted) {
+        finished.complete();
+      }
+    });
+    try {
+      connection.websocket.send('');
+      await finished.future.timeout(finishTimeout);
+    } on TimeoutException {
+      debugPrint('[session] o Soniox não confirmou o fim em $finishTimeout');
+    } catch (error) {
+      debugPrint('[session] falha ao encerrar o stream: $error');
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  static bool _isFinishedMessage(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map && decoded['finished'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void dispose() {
@@ -418,7 +490,7 @@ class SessionController {
   void _failSession(String message) {
     host.onError(message);
     if (_sessionFromButton || !supportsOverlay) {
-      finishSession();
+      unawaited(finishSession());
     }
   }
 }
