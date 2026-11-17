@@ -11,23 +11,21 @@ import 'device_change_source.dart';
 /// aparecia, e um microfone escolhido e depois desplugado era aberto mesmo
 /// assim na próxima gravação (a captura falhava). Agora:
 ///  - [refresh] relê a lista e só avisa os ouvintes se ela mudou (por id);
-///  - [watch] mantém a lista em dia: evento `devicechange` no navegador e
-///    sondeio a cada [pollInterval] no macOS/Android, pausado com o app em
-///    segundo plano e refeito ao voltar;
+///  - [watch] mantém a lista em dia por avisos do sistema (CoreAudio no macOS,
+///    `AudioDeviceCallback` no Android, `devicechange` no navegador), sem
+///    sondar; ao voltar para o primeiro plano relê uma vez, de garantia;
 ///  - a preferência do usuário (rótulo) fica guardada; [selected] é o
 ///    dispositivo EFETIVO — a preferência se estiver conectada, senão
 ///    `null` (= padrão do sistema). Se o microfone volta, volta a valer.
 class InputDeviceService extends ChangeNotifier {
   InputDeviceService({
     required this.fetch,
-    this.pollInterval = const Duration(seconds: 2),
     Stream<void>? Function()? changeEvents,
     this.observeLifecycle = true,
   }) : _changeEvents = changeEvents ?? deviceChangeEvents;
 
   /// Enumera as entradas (plugin `record`).
   final Future<List<InputDevice>> Function() fetch;
-  final Duration pollInterval;
   final Stream<void>? Function() _changeEvents;
   final bool observeLifecycle;
 
@@ -35,8 +33,6 @@ class InputDeviceService extends ChangeNotifier {
   String? _preferredLabel;
 
   int _watchers = 0;
-  bool _foreground = true;
-  Timer? _timer;
   StreamSubscription<void>? _eventsSubscription;
   AppLifecycleListener? _lifecycle;
   bool _refreshing = false;
@@ -113,38 +109,20 @@ class InputDeviceService extends ChangeNotifier {
     if (observeLifecycle) {
       _lifecycle = AppLifecycleListener(
         onStateChange: (state) {
-          _foreground = state == AppLifecycleState.resumed;
-          if (_foreground) {
-            refresh();
-            _schedule();
-          } else {
-            _timer?.cancel();
-            _timer = null;
-          }
+          if (state == AppLifecycleState.resumed) refresh();
         },
       );
     }
-    _schedule();
   }
 
   void unwatch() {
     if (_watchers == 0) return;
     _watchers--;
     if (_watchers > 0) return;
-    _timer?.cancel();
-    _timer = null;
     _eventsSubscription?.cancel();
     _eventsSubscription = null;
     _lifecycle?.dispose();
     _lifecycle = null;
-  }
-
-  void _schedule() {
-    _timer?.cancel();
-    _timer = null;
-    // Com evento do sistema (web) não precisa sondar.
-    if (_eventsSubscription != null || !_foreground || _watchers == 0) return;
-    _timer = Timer.periodic(pollInterval, (_) => refresh());
   }
 
   void _notify() {
@@ -154,7 +132,6 @@ class InputDeviceService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _timer?.cancel();
     _eventsSubscription?.cancel();
     _lifecycle?.dispose();
     super.dispose();

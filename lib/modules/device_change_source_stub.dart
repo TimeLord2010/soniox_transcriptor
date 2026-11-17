@@ -1,4 +1,4 @@
 import 'dart:async';
 
-/// macOS e Android não avisam a mudança de entradas pelo plugin `record`.
+/// Sistemas sem aviso de mudança de entradas.
 Stream<void>? deviceChangeEvents() => null;

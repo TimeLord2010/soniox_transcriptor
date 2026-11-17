@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
 import 'package:soniox_transcriptor/modules/input_device_service.dart';
@@ -120,52 +121,77 @@ void main() {
     });
   });
 
-  group('sondeio', () {
-    const tick = Duration(milliseconds: 20);
-    const wait = Duration(milliseconds: 90);
-
-    test('lista em dia a cada intervalo e para ao soltar', () async {
-      final hw = _FakeHardware();
-      final service = InputDeviceService(
-        fetch: hw.fetch,
-        pollInterval: tick,
-        observeLifecycle: false,
-        changeEvents: () => null,
-      );
-      service.watch();
-      await Future<void>.delayed(wait);
-      expect(service.devices.map((d) => d.id), ['a']);
-
-      hw.devices = [dev('a'), dev('b')];
-      await Future<void>.delayed(wait);
-      expect(service.devices.map((d) => d.id), ['a', 'b']);
-
-      service.unwatch();
-      final calls = hw.calls;
-      await Future<void>.delayed(wait);
-      expect(hw.calls, calls);
-      service.dispose();
-    });
-
-    test('evento do sistema (web) atualiza sem sondar', () async {
+  group('avisos do sistema', () {
+    test('evento nativo/web relê a lista; sem sondeio nenhum', () async {
       final hw = _FakeHardware();
       final events = StreamController<void>.broadcast();
       final service = InputDeviceService(
         fetch: hw.fetch,
-        pollInterval: tick,
         observeLifecycle: false,
         changeEvents: () => events.stream,
       );
       service.watch();
-      await Future<void>.delayed(wait);
+      // Sem timer: nada é consultado enquanto não houver evento.
+      await Future<void>.delayed(const Duration(milliseconds: 150));
       expect(hw.calls, 0);
 
       events.add(null);
       await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(hw.calls, 1);
       expect(service.devices.map((d) => d.id), ['a']);
+
+      hw.devices = [dev('a'), dev('b')];
+      events.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(service.devices.map((d) => d.id), ['a', 'b']);
+
       service.unwatch();
+      expect(events.hasListener, isFalse);
+      events.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(hw.calls, 2);
       service.dispose();
       await events.close();
+    });
+
+    test('sem fonte de eventos (outros sistemas) também não sonda', () async {
+      final hw = _FakeHardware();
+      final service = InputDeviceService(
+        fetch: hw.fetch,
+        observeLifecycle: false,
+        changeEvents: () => null,
+      );
+      service.watch();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(hw.calls, 0);
+      service.unwatch();
+      service.dispose();
+    });
+
+    testWidgets('voltar ao primeiro plano relê uma vez', (tester) async {
+      final hw = _FakeHardware();
+      final service = InputDeviceService(
+        fetch: hw.fetch,
+        changeEvents: () => null,
+      );
+      service.watch();
+      expect(hw.calls, 0);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(hw.calls, 0);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(hw.calls, 1);
+      expect(service.devices.map((d) => d.id), ['a']);
+
+      service.unwatch();
+      service.dispose();
     });
   });
 

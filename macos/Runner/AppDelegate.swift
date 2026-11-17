@@ -14,6 +14,7 @@ class AppDelegate: FlutterAppDelegate {
   override func applicationDidFinishLaunching(_ notification: Notification) {
     let controller = mainFlutterWindow?.contentViewController as! FlutterViewController
     HotkeyPlugin.register(with: controller.registrar(forPlugin: "HotkeyPlugin"))
+    InputDevicesPlugin.register(with: controller.registrar(forPlugin: "InputDevicesPlugin"))
     super.applicationDidFinishLaunching(notification)
   }
 }

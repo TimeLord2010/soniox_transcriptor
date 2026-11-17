@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         KeyboardDiary.init(this)
+        InputDevicesChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         // O Flutter não fala com o gerenciador de teclados: só a Activity pode
         // abrir a lista de teclados e mostrar o seletor do sistema.

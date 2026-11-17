@@ -29,6 +29,7 @@
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		AA1234560000000000000001 /* HotkeyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1234560000000000000002 /* HotkeyPlugin.swift */; };
+		AA1234560000000000000011 /* InputDevicesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1234560000000000000012 /* InputDevicesPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +83,7 @@
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		AA1234560000000000000002 /* HotkeyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyPlugin.swift; sourceTree = "<group>"; };
+		AA1234560000000000000012 /* InputDevicesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputDevicesPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +173,7 @@
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				AA1234560000000000000002 /* HotkeyPlugin.swift */,
+				AA1234560000000000000012 /* InputDevicesPlugin.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -361,6 +364,7 @@
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 				AA1234560000000000000001 /* HotkeyPlugin.swift in Sources */,
+				AA1234560000000000000011 /* InputDevicesPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
