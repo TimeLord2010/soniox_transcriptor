@@ -47,6 +47,8 @@ class DictationSession(
         val finished: Boolean = false,
         /** Fala que o Soniox transcreveu sem traduzir: já está no idioma alvo. */
         val nothingToTranslate: Boolean = false,
+        /** Chegou o `<fin>`: tudo o que foi falado até o `finalize` já é final. */
+        val finalized: Boolean = false,
     )
 
     private val main = Handler(Looper.getMainLooper())
@@ -109,6 +111,17 @@ class DictationSession(
         // Se o Soniox não confirmar, fecha mesmo assim depois do prazo.
         open.send("")
         main.postDelayed({ closeNow(open, "timeout") }, if (failed) FINALIZE_GRACE_MS else FINISH_TIMEOUT_MS)
+    }
+
+    /**
+     * Pede ao Soniox que finalize já o texto não final, sem encerrar o ditado.
+     * A resposta é o [Update.finalized]. Devolve false se não houver socket
+     * aberto (nada a esperar).
+     */
+    fun finalizeNow(): Boolean {
+        if (stopper.get()) return true // o `stop` já mandou o finalize
+        val open = socket ?: return false
+        return open.send(FINALIZE)
     }
 
     /** Fecha o socket uma única vez e avisa que acabou. */
@@ -272,6 +285,7 @@ class DictationSession(
         val finalText = StringBuilder()
         val preview = StringBuilder()
         var nothingToTranslate = false
+        var finalized = false
 
         for (index in 0 until tokens.length()) {
             val token = tokens.optJSONObject(index) ?: continue
@@ -279,6 +293,7 @@ class DictationSession(
             // Marcadores de controle do protocolo (`<end>` de fim de fala,
             // `<fin>` que fecha o `finalize`) não são conteúdo: o `<fin>` era
             // digitado no campo ao tocar em "parar".
+            if (word == FIN_TOKEN) finalized = true
             if (word.isEmpty() || CONTROL_TOKEN.matches(word)) continue
             val isFinal = token.optBoolean("is_final", false)
             val status = token.optString("translation_status", "")
@@ -301,6 +316,8 @@ class DictationSession(
         // reescreve esses tokens a cada evento), enquanto os finais são deltas.
         emit(Update(preview = preview.toString()))
         if (finalText.isNotEmpty()) emit(Update(finalText = finalText.toString()))
+        // Depois dos finais: quem espera o `finalize` já os tem no campo.
+        if (finalized) emit(Update(finalized = true))
     }
 
     private fun emit(update: Update) {
@@ -315,6 +332,7 @@ class DictationSession(
         private const val CHUNK_BYTES = SAMPLE_RATE * 2 * CHUNK_MS / 1000
         private const val FINALIZE = """{"type":"finalize"}"""
         /** Marcadores do protocolo (`<end>`, `<fin>`) — nunca texto do ditado. */
+        private const val FIN_TOKEN = "<fin>"
         private val CONTROL_TOKEN = Regex("^<[a-z0-9_]+>$")
         private const val FINALIZE_GRACE_MS = 1500L
         /** Prazo para o `finished` do Soniox (igual ao do app). */

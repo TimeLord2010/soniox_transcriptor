@@ -13,6 +13,14 @@ class SessionHistoryBuffer(private val enqueue: (String) -> Unit) {
         text.append(part)
     }
 
+    /** Reescreve o acumulado (ex.: o `?` que troca o ponto final). */
+    @Synchronized
+    fun edit(transform: (String) -> String) {
+        val edited = transform(text.toString())
+        text.setLength(0)
+        text.append(edited)
+    }
+
     fun flush() {
         val taken = synchronized(this) {
             val s = text.toString()

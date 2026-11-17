@@ -47,6 +47,8 @@ class SonioxKeyboardService : InputMethodService() {
     private lateinit var spaceView: TextView
     private lateinit var backspaceView: TextView
     private lateinit var enterView: TextView
+    private lateinit var atView: TextView
+    private lateinit var questionView: TextView
 
     private var state = State.Idle
     private var statusOverride: String? = null
@@ -55,6 +57,18 @@ class SonioxKeyboardService : InputMethodService() {
     private var session: KeyboardSession = KeyboardSession.empty()
     private var dictation: DictationSession? = null
     private var foreground = false
+
+    /**
+     * `@`/`?` tocados com texto não final na prévia: esperam o `finalize` do
+     * Soniox para entrar DEPOIS desse texto, que ainda não está no campo.
+     */
+    private val pendingMarks = ArrayDeque<String>()
+
+    /** Depois do `@`, o próximo final entra sem o espaço inicial. */
+    private var glueNextFinal = false
+
+    /** Histórico do ditado em curso (as marcas também vão para ele). */
+    private var activeHistory: SessionHistoryBuffer? = null
 
     /** Grava o que o ditado em curso já digitou no campo (null sem ditado). */
     private var flushHistory: (() -> Unit)? = null
@@ -117,6 +131,7 @@ class SonioxKeyboardService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        if (!restarting) glueNextFinal = false
         val inputType = attribute?.inputType ?: 0
         diary(
             "onStartInput restarting=$restarting inputType=0x${Integer.toHexString(inputType)} " +
@@ -311,6 +326,9 @@ class SonioxKeyboardService : InputMethodService() {
         orientation = LinearLayout.HORIZONTAL
         setPadding(0, dp(8), 0, 0)
 
+        atView = squareButton(KeyboardPunctuation.AT) { insertMark(KeyboardPunctuation.AT) }
+        addView(atView, LinearLayout.LayoutParams(dp(56), dp(44)).apply { marginEnd = dp(10) })
+
         spaceView = TextView(context).apply {
             gravity = Gravity.CENTER
             text = "espaço"
@@ -320,7 +338,10 @@ class SonioxKeyboardService : InputMethodService() {
             setOnClickListener { commitSpace() }
             isClickable = true
         }
-        addView(spaceView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+        addView(spaceView, LinearLayout.LayoutParams(0, dp(44), 1f))
+
+        questionView = squareButton(KeyboardPunctuation.QUESTION) { insertMark(KeyboardPunctuation.QUESTION) }
+        addView(questionView, LinearLayout.LayoutParams(dp(56), dp(44)).apply { marginStart = dp(10) })
     }
 
 
@@ -493,6 +514,9 @@ class SonioxKeyboardService : InputMethodService() {
             KeyboardHistoryOutbox.enqueue(text, clientReferenceId = id)
         }
         var ended = false
+        // Marcas de uma sessão anterior que nunca recebeu o `<fin>`.
+        applyPendingMarks()
+        activeHistory = history
         val flush = { history.flush() }
         flushHistory?.invoke()
         flushHistory = flush
@@ -513,7 +537,12 @@ class SonioxKeyboardService : InputMethodService() {
                 preview = it
                 render()
             }
-            update.finalText?.let { text ->
+            update.finalText?.let { raw ->
+                var text = raw
+                if (glueNextFinal) {
+                    text = KeyboardPunctuation.glueAfterAt(raw)
+                    if (text.isNotEmpty()) glueNextFinal = false
+                }
                 // Finais são deltas: cada evento traz só o que acabou de virar
                 // final, então concatenar no campo é o certo.
                 currentInputConnection?.commitText(text, 1)
@@ -525,7 +554,12 @@ class SonioxKeyboardService : InputMethodService() {
                 preview = ""
                 render()
             }
+            // O texto falado até o toque em `@`/`?` já está no campo.
+            if (update.finalized) applyPendingMarks()
             if (update.finished) {
+                // Sem `<fin>` (erro, prazo): a marca entra mesmo assim.
+                applyPendingMarks()
+                if (activeHistory === history) activeHistory = null
                 val firstEnd = !ended
                 ended = true
                 flush()
@@ -567,7 +601,47 @@ class SonioxKeyboardService : InputMethodService() {
 
     // MARK: Ações de tecla
 
+    /**
+     * `@` e `?` vão sempre para o fim do texto ditado. Se ainda há texto não
+     * final (só na prévia, fora do campo), o Soniox é forçado a finalizá-lo e a
+     * marca entra quando ele chegar; sem prévia, entra já, no cursor.
+     */
+    private fun insertMark(mark: String) {
+        val running = dictation
+        if (running != null && preview.isNotBlank() && running.finalizeNow()) {
+            pendingMarks.addLast(mark)
+            diary("mark pending ${pendingMarks.size}")
+            return
+        }
+        applyMark(mark)
+    }
+
+    private fun applyPendingMarks() {
+        while (pendingMarks.isNotEmpty()) applyMark(pendingMarks.removeFirst())
+    }
+
+    private fun applyMark(mark: String) {
+        val connection = currentInputConnection
+        val history = if (dictation != null) activeHistory else null
+        when (mark) {
+            KeyboardPunctuation.QUESTION -> {
+                val before = connection?.getTextBeforeCursor(QUESTION_LOOKBEHIND, 0)
+                val drop = KeyboardPunctuation.charsToDropBeforeQuestion(before)
+                if (drop > 0) connection?.deleteSurroundingText(drop, 0)
+                connection?.commitText(mark, 1)
+                history?.edit(KeyboardPunctuation::appendQuestion)
+                glueNextFinal = false
+            }
+            else -> {
+                connection?.commitText(mark, 1)
+                history?.onFinal(mark)
+                glueNextFinal = mark == KeyboardPunctuation.AT
+            }
+        }
+    }
+
     private fun deleteBackward() {
+        glueNextFinal = false
         val connection = currentInputConnection
         Log.d(TAG, "deleteBackward: connection=${connection != null}")
         if (connection == null) return
@@ -576,6 +650,7 @@ class SonioxKeyboardService : InputMethodService() {
     }
 
     private fun commitSpace() {
+        glueNextFinal = false
         val connection = currentInputConnection
         Log.d(TAG, "commitSpace: connection=${connection != null}")
         // `commitText` é o caminho normal; alguns campos (busca do sistema)
@@ -584,6 +659,7 @@ class SonioxKeyboardService : InputMethodService() {
     }
 
     private fun commitEnter() {
+        glueNextFinal = false
         val connection = currentInputConnection ?: return
         connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
@@ -705,6 +781,8 @@ class SonioxKeyboardService : InputMethodService() {
     private fun dp(value: Int) = (value * density).toInt()
 
     companion object {
+        /** Basta ver o ponto e os espaços depois dele. */
+        private const val QUESTION_LOOKBEHIND = 32
         private const val TAG = "SonioxKeyboard"
         private var crashHookInstalled = false
         private const val CHANNEL_ID = "soniox_keyboard_dictation"
