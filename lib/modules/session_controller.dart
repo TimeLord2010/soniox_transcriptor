@@ -38,7 +38,15 @@ abstract class SessionHost {
   /// A sessão fechou com texto: gravar no histórico e entregar é do app.
   /// [sandboxBaseText] é o conteúdo que já estava na sandbox quando a captura
   /// começou — o resultado entra depois dele, sem apagar o que a pessoa digitou.
-  void onCompleted(String finalText, String nonFinal, String sandboxBaseText);
+  ///
+  /// [audioDuration] é o tempo de áudio realmente capturado (`null` se o
+  /// gravador nunca chegou a abrir).
+  void onCompleted(
+    String finalText,
+    String nonFinal,
+    String sandboxBaseText, {
+    Duration? audioDuration,
+  });
 
   /// `_recording`/`_isProcessing` mudaram (o botão precisa repintar).
   void onStateChanged();
@@ -79,6 +87,11 @@ class SessionController {
   StreamSubscription? _transcriptionSubscription;
   StreamSubscription<SonioxError>? _errorSubscription;
   StreamSubscription<String>? _recorderErrorSubscription;
+
+  /// Mede só o tempo com o microfone aberto (do início do envio de áudio até o
+  /// fim da sessão), sem a espera da conexão. O app não tem pausa.
+  final Stopwatch _captureWatch = Stopwatch();
+  bool _captured = false;
 
   bool _isProcessing = false;
   bool _recording = false;
@@ -161,6 +174,10 @@ class SessionController {
           return;
         }
         debugPrint('Recording...');
+        _captured = true;
+        _captureWatch
+          ..reset()
+          ..start();
         _recordStreamSubscription = recorder.recordStream.listen(
           connection.addAudio,
         );
@@ -255,11 +272,18 @@ class SessionController {
     if (!_sessionFromButton) host.onHideOverlay(hadError: hadError);
 
     if (fullText.isNotEmpty) {
-      host.onCompleted(finalText, _nonFinal, _sandboxBaseText);
+      host.onCompleted(
+        finalText,
+        _nonFinal,
+        _sandboxBaseText,
+        audioDuration: _captured ? _captureWatch.elapsed : null,
+      );
     }
 
     _connection?.disconnect();
     recorder.stop();
+    _captureWatch.stop();
+    _captured = false;
     _isProcessing = false;
     _recording = false;
     _sessionFromButton = false;
@@ -280,6 +304,8 @@ class SessionController {
     _buffer.clear();
     _nonFinal = '';
     _sessionError = null;
+    _captureWatch.reset();
+    _captured = false;
     _diarized = null;
     _translationTarget = null;
     _translationBuffer.clear();

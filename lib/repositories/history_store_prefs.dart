@@ -69,6 +69,7 @@ class PrefsHistoryStore implements HistoryStore {
         finalText: record.finalText,
         nonFinalText: record.nonFinalText,
         createdAt: record.createdAt,
+        audioDurationMs: record.audioDurationMs,
       ),
     );
     _sortNewestFirst();

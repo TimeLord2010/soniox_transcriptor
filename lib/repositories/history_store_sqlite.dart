@@ -14,7 +14,8 @@ class SqliteHistoryStore implements HistoryStore {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       final_text TEXT NOT NULL,
       non_final_text TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      audio_duration_ms INTEGER
     )
   ''';
 
@@ -28,6 +29,16 @@ class SqliteHistoryStore implements HistoryStore {
   /// Aceita um banco já aberto (testes usam `sqlite3.openInMemory()`).
   SqliteHistoryStore(this._db) {
     _db.execute(schema);
+    // Bancos criados antes do campo de duração não têm a coluna.
+    final columns = _db
+        .select('PRAGMA table_info(transcriptions)')
+        .map((row) => row['name'])
+        .toList();
+    if (!columns.contains('audio_duration_ms')) {
+      _db.execute(
+        'ALTER TABLE transcriptions ADD COLUMN audio_duration_ms INTEGER',
+      );
+    }
   }
 
   final Database _db;
@@ -40,13 +51,14 @@ class SqliteHistoryStore implements HistoryStore {
   @override
   void insert(TranscriptionRecord record) {
     final stmt = _db.prepare('''
-      INSERT INTO transcriptions (final_text, non_final_text, created_at)
-      VALUES (?, ?, ?)
+      INSERT INTO transcriptions (final_text, non_final_text, created_at, audio_duration_ms)
+      VALUES (?, ?, ?, ?)
     ''');
     stmt.execute([
       record.finalText,
       record.nonFinalText,
       record.createdAt.millisecondsSinceEpoch,
+      record.audioDurationMs,
     ]);
     stmt.close();
   }

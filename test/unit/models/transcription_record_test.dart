@@ -37,5 +37,32 @@ void main() {
         'created_at': 1234,
       });
     });
+
+    test(
+      'fromMap sem audio_duration_ms (registro antigo) carrega com null',
+      () {
+        final record = TranscriptionRecord.fromMap({
+          'id': 1,
+          'final_text': 'a',
+          'non_final_text': 'b',
+          'created_at': 1234,
+        });
+
+        expect(record.audioDurationMs, isNull);
+      },
+    );
+
+    test('audio_duration_ms faz ida e volta', () {
+      final record = TranscriptionRecord(
+        id: 2,
+        finalText: 'a',
+        nonFinalText: '',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(1234),
+        audioDurationMs: 65000,
+      );
+
+      final back = TranscriptionRecord.fromMap(record.toJson());
+      expect(back.audioDurationMs, 65000);
+    });
   });
 }

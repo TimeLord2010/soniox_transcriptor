@@ -4,11 +4,16 @@ class TranscriptionRecord {
   final String nonFinalText;
   final DateTime createdAt;
 
+  /// Tempo de áudio efetivamente capturado, em ms. `null` nos registros
+  /// antigos (anteriores a este campo) e nos importados do teclado.
+  final int? audioDurationMs;
+
   TranscriptionRecord({
     this.id,
     required this.finalText,
     required this.nonFinalText,
     required this.createdAt,
+    this.audioDurationMs,
   });
 
   String get text => finalText + nonFinalText;
@@ -23,6 +28,7 @@ class TranscriptionRecord {
       finalText: map['final_text'] as String,
       nonFinalText: map['non_final_text'] as String,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
+      audioDurationMs: (map['audio_duration_ms'] as num?)?.toInt(),
     );
   }
 
@@ -31,6 +37,7 @@ class TranscriptionRecord {
       'final_text': finalText,
       'non_final_text': nonFinalText,
       'created_at': createdAt.millisecondsSinceEpoch,
+      if (audioDurationMs != null) 'audio_duration_ms': audioDurationMs,
     };
   }
 

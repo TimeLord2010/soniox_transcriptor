@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 
+import '../models/history_summary.dart';
 import '../models/transcription_record.dart';
 import '../providers/history_provider.dart';
 import '../repositories/transcription_repository.dart';
+import 'pages/transcription_detail_page.dart';
 import 'styles/ui.dart';
 
 class TranscriptionsHistory extends ConsumerWidget {
@@ -41,6 +43,8 @@ class TranscriptionsHistory extends ConsumerWidget {
             ],
           ),
         ),
+        if (history.isNotEmpty)
+          _SummaryHeader(summary: HistorySummary.from(history)),
         Expanded(child: _content(ref, history)),
       ],
     );
@@ -90,6 +94,70 @@ class TranscriptionsHistory extends ConsumerWidget {
   }
 }
 
+class _SummaryHeader extends StatelessWidget {
+  const _SummaryHeader({required this.summary});
+
+  final HistorySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = summary.recordsWithDuration == 0
+        ? '—'
+        : formatDurationPt(summary.totalAudio);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.all(10),
+      decoration: fieldDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _stat('Caracteres', formatThousandsPtBr(summary.totalChars)),
+              _stat('Duração', audio),
+              _stat('Tempo salvo', formatDurationPt(summary.timeSaved)),
+            ],
+          ),
+          if (summary.recordsWithoutDuration > 0 &&
+              summary.recordsWithDuration > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Sem duração em ${summary.recordsWithoutDuration} '
+              '${summary.recordsWithoutDuration == 1 ? 'transcrição antiga' : 'transcrições antigas'}',
+              style: const TextStyle(
+                fontSize: 11,
+                color: CupertinoColors.secondaryLabel,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String label, String value) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.secondaryLabel,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HistoryItem extends StatelessWidget {
   const _HistoryItem({required this.record});
 
@@ -97,45 +165,53 @@ class _HistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: fieldDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            record.text,
-            maxLines: 5,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                formatDateTime(record.createdAt),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: CupertinoColors.secondaryLabel,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => TranscriptionDetailPage(record: record),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: fieldDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              record.text,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  formatDateTime(record.createdAt),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.secondaryLabel,
+                  ),
                 ),
-              ),
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: record.text));
-                },
-                child: const Icon(
-                  CupertinoIcons.doc_on_doc,
-                  size: 16,
-                  color: CupertinoColors.secondaryLabel,
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: record.text));
+                  },
+                  child: const Icon(
+                    CupertinoIcons.doc_on_doc,
+                    size: 16,
+                    color: CupertinoColors.secondaryLabel,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -456,12 +456,18 @@ class _MainPageState extends ConsumerState<MainPage>
   }
 
   @override
-  void onCompleted(String finalText, String nonFinal, String sandboxBaseText) {
+  void onCompleted(
+    String finalText,
+    String nonFinal,
+    String sandboxBaseText, {
+    Duration? audioDuration,
+  }) {
     GetIt.I.get<TranscriptionRepository>().insert(
       TranscriptionRecord(
         finalText: finalText,
         nonFinalText: nonFinal,
         createdAt: DateTime.now(),
+        audioDurationMs: audioDuration?.inMilliseconds,
       ),
     );
     ref.invalidate(historyProvider);
