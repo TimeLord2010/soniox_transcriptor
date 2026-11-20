@@ -7,9 +7,9 @@ import 'package:soniox_transcriptor/components/sandbox_text_field.dart';
 import 'package:soniox_transcriptor/components/styles/ui.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
 
-/// Aba Sandbox: captura comandada pelo botão (sempre visível, nas duas
-/// plataformas), o acesso aos ajustes da captura e as caixas onde o texto ao
-/// vivo aparece.
+/// Aba Sandbox: o comando de captura (o botão antes de gravar; durante a
+/// captura, a onda do microfone no lugar dele), o acesso aos ajustes e as
+/// caixas onde o texto ao vivo aparece.
 ///
 /// Sem rolagem na página: as caixas ocupam toda a altura que sobra da aba (a
 /// barra inferior flutua sobre o conteúdo, daí o recuo de 58 px no rodapé).
@@ -64,12 +64,9 @@ class SandboxTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _recordControl(),
-          const SizedBox(height: 6),
-          // Logo abaixo do botão: é o nível do microfone que está alimentando a
-          // captura. Fora da captura fica reta, então a área não muda de
-          // tamanho ao começar/parar.
-          AudioWaveform(level: audioLevel, active: isRecording),
+          // Com a captura aberta o botão sai de cena e a onda assume o
+          // comando: fora dela a onda nem é montada.
+          if (isRecording) _recordingControl() else _recordControl(),
           const SizedBox(height: kSectionSpacing),
           Expanded(child: _textAreas()),
         ],
@@ -146,19 +143,59 @@ class SandboxTab extends StatelessWidget {
   /// Comando de captura por toque/clique, com o acesso aos ajustes da captura
   /// no fim da mesma linha. Fica logo acima da sandbox porque é ali que o texto
   /// desta sessão vai aparecer (e no Android é o único jeito de abrir uma
-  /// sessão).
+  /// sessão). Só existe fora da captura: gravando, quem ocupa o lugar é a onda
+  /// ([_recordingControl]).
   Widget _recordControl() {
     return Row(
       children: [
         Expanded(
           child: RecordButton(
-            isRecording: isRecording,
             pointerVerb: pointerVerb,
             onPressed: onToggleRecording,
           ),
         ),
         const SizedBox(width: 8),
         _captureSettingsButton(),
+      ],
+    );
+  }
+
+  /// Durante a captura a onda ocupa o lugar do botão e é ela que encerra a
+  /// sessão no toque — o aviso embaixo existe para o gesto não ser adivinhação.
+  Widget _recordingControl() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        CupertinoButton(
+          key: const ValueKey('sandbox-waveform-stop'),
+          padding: EdgeInsets.zero,
+          pressedOpacity: 0.7,
+          onPressed: onToggleRecording,
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemRed.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: CupertinoColors.systemRed.withValues(alpha: 0.5),
+                width: 1,
+              ),
+            ),
+            child: AudioWaveform(level: audioLevel),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: Text(
+            '$pointerVerb nas ondas para parar.',
+            key: const ValueKey('sandbox-waveform-hint'),
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.tertiaryLabel,
+            ),
+          ),
+        ),
       ],
     );
   }
