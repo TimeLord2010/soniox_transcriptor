@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:soniox_transcriptor/models/languages.dart';
+import 'package:soniox_transcriptor/modules/audio_level.dart';
 import 'package:soniox_transcriptor/modules/control_tokens.dart';
 import 'package:soniox_transcriptor/modules/diarized_text.dart';
 import 'package:soniox_transcriptor/modules/session_config.dart';
@@ -27,6 +28,10 @@ abstract class SessionHost {
   /// Texto ao vivo da sessão do botão (a sandbox acompanha a captura).
   void onSandboxText(String text);
   void onTranslationText(String text);
+
+  /// Volume do microfone em 0..1, para a onda da aba Sandbox. Zero também
+  /// significa "captura parada" (o desenho fica reto).
+  void onAudioLevel(double level);
 
   /// O aviso "nada para traduzir" entrou ou saiu.
   void onNothingToTranslateChanged();
@@ -95,6 +100,14 @@ class SessionController {
 
   /// Quanto esperamos o `finished` do Soniox antes de fechar mesmo assim.
   final Duration finishTimeout;
+
+  /// Volume do microfone, para a onda da Sandbox.
+  final _levelMeter = AudioLevelMeter();
+
+  /// De quanto em quanto tempo o nível sai para a UI. A onda amostra a cada
+  /// 70 ms; mandar um nível por bloco só geraria repaint sem mudança visível.
+  static const _levelInterval = Duration(milliseconds: 50);
+  Duration _lastLevelAt = Duration.zero;
 
   SonioxWebsocket? _connection;
   StreamSubscription<bool>? _connectionSubscription;
@@ -197,7 +210,7 @@ class SessionController {
           ..reset()
           ..start();
         _recordStreamSubscription = recorder.recordStream.listen(
-          connection.addAudio,
+          _onAudioChunk,
         );
       } else {
         unawaited(_recordStreamSubscription?.cancel());
@@ -233,6 +246,9 @@ class SessionController {
     if (_isProcessing) return;
     _isProcessing = true;
     _recording = true;
+    _levelMeter.reset();
+    _lastLevelAt = Duration.zero;
+    host.onAudioLevel(0);
     host.onStateChanged();
 
     _sandboxBaseText = sandboxBaseText;
@@ -301,6 +317,10 @@ class SessionController {
     _recordStreamSubscription = null;
     await recorder.stop();
     _captureWatch.stop();
+    // A onda não pode ficar congelada no último nível: o desenho cai sozinho,
+    // mas o estado publicado também volta ao zero.
+    _levelMeter.reset();
+    host.onAudioLevel(0);
     final audioDuration = _captured ? _captureWatch.elapsed : null;
 
     if (connection != null && _captured && !hadError) {
@@ -363,6 +383,17 @@ class SessionController {
     }
   }
 
+  /// Cada bloco de áudio vai para a Soniox e, de quebra, vira nível de volume
+  /// para a onda da Sandbox.
+  void _onAudioChunk(Uint8List chunk) {
+    _connection?.addAudio(chunk);
+    final level = _levelMeter.consume(chunk);
+    final elapsed = _captureWatch.elapsed;
+    if (elapsed - _lastLevelAt < _levelInterval) return;
+    _lastLevelAt = elapsed;
+    host.onAudioLevel(level);
+  }
+
   void dispose() {
     _connection?.disconnect();
     _connectionSubscription?.cancel();
@@ -386,6 +417,8 @@ class SessionController {
     _translationErrorReported = false;
     _untranslatedSpeech = false;
     _showNothingToTranslate = false;
+    _levelMeter.reset();
+    _lastLevelAt = Duration.zero;
   }
 
   /// Andamento de uma sessão sem tradução: o pacote já entrega o texto pronto.

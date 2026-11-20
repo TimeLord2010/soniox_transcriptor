@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
+import 'package:soniox_transcriptor/components/audio_waveform.dart';
 import 'package:soniox_transcriptor/components/record_button.dart';
 import 'package:soniox_transcriptor/components/sandbox_settings.dart';
 import 'package:soniox_transcriptor/components/sandbox_text_field.dart';
@@ -23,6 +25,7 @@ class SandboxTab extends StatelessWidget {
     required this.translationTarget,
     required this.showNothingToTranslate,
     required this.isRecording,
+    required this.audioLevel,
     required this.pointerVerb,
     required this.onToggleRecording,
     required this.onCopySandbox,
@@ -43,6 +46,9 @@ class SandboxTab extends StatelessWidget {
 
   final bool isRecording;
 
+  /// Volume capturado em 0..1: alimenta a onda logo abaixo do botão.
+  final ValueListenable<double> audioLevel;
+
   /// Verbo do gesto: `Clique` no desktop, `Toque` no celular.
   final String pointerVerb;
 
@@ -59,6 +65,11 @@ class SandboxTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _recordControl(),
+          const SizedBox(height: 6),
+          // Logo abaixo do botão: é o nível do microfone que está alimentando a
+          // captura. Fora da captura fica reta, então a área não muda de
+          // tamanho ao começar/parar.
+          AudioWaveform(level: audioLevel, active: isRecording),
           const SizedBox(height: kSectionSpacing),
           Expanded(child: _textAreas()),
         ],

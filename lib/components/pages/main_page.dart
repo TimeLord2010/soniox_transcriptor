@@ -60,6 +60,10 @@ class _MainPageState extends ConsumerState<MainPage>
   /// dois textos têm destinos diferentes (a sandbox é o que foi falado).
   final _translationController = TextEditingController();
 
+  /// Volume do microfone para a onda da Sandbox. Notifier (e não `setState`):
+  /// o nível chega a cada 50 ms e não pode reconstruir o texto a cada bloco.
+  final _audioLevel = ValueNotifier<double>(0);
+
   late final _session = SessionController(
     host: this,
     recorder: recorder,
@@ -136,6 +140,7 @@ class _MainPageState extends ConsumerState<MainPage>
     _sandboxController.dispose();
     _sandboxFocusNode.dispose();
     _translationController.dispose();
+    _audioLevel.dispose();
     recorder.dispose();
     super.dispose();
   }
@@ -256,6 +261,7 @@ class _MainPageState extends ConsumerState<MainPage>
         translationTarget: ref.watch(translationProvider),
         showNothingToTranslate: _session.showNothingToTranslate,
         isRecording: _session.isRecording,
+        audioLevel: _audioLevel,
         pointerVerb: PlatformSupport.usesClickVerb ? 'Clique' : 'Toque',
         onToggleRecording: () =>
             _toggleRecording(ref.read(apiKeyProvider).isNotEmpty),
@@ -445,6 +451,13 @@ class _MainPageState extends ConsumerState<MainPage>
 
   @override
   void onTranslationText(String text) => _setTranslationText(text);
+
+  @override
+  void onAudioLevel(double level) {
+    // O `ValueNotifier` já ignora valor repetido; só falta esperar a árvore
+    // viva quando a captura fecha junto com a página.
+    if (mounted) _audioLevel.value = level;
+  }
 
   @override
   void onNothingToTranslateChanged() {
