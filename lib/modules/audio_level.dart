@@ -11,8 +11,8 @@ class AudioLevelMeter {
   AudioLevelMeter({
     this.floorDb = -55,
     this.ceilingDb = -6,
-    this.attack = 0.55,
-    this.release = 0.18,
+    this.attack = 0.75,
+    this.release = 0.35,
   });
 
   /// Abaixo disto é silêncio/ruído de fundo: nível zero.
@@ -22,6 +22,10 @@ class AudioLevelMeter {
   final double ceilingDb;
 
   /// Fração da distância percorrida por bloco quando o volume SOBE.
+  ///
+  /// Alta de propósito: o bloco já é uma média de ~100 ms de áudio, e é essa
+  /// variação por sílaba que dá forma à onda (amortecer demais entrega um bloco
+  /// reto em vez de onda).
   final double attack;
 
   /// Idem quando o volume DESCE.
